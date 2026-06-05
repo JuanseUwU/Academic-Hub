@@ -23,6 +23,7 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  FolderOpen,
   Home,
   Image as ImageIcon,
   LayoutGrid,
@@ -39,7 +40,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react-native'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -56,7 +57,7 @@ import {
   View,
 } from 'react-native'
 
-type Tab = 'home' | 'calendar' | 'projects' | 'settings'
+type Tab = 'home' | 'calendar' | 'projects' | 'assistant' | 'settings'
 type ThemeName = 'dark' | 'light'
 type Priority = 'Alta' | 'Media' | 'Baja'
 type FontScale = 1 | 1.15 | 1.3
@@ -81,6 +82,9 @@ type TaskRow = Omit<Task, 'done' | 'reminder'> & {
   reminder: number
 }
 
+type SubjectRow = Subject
+type ProjectRow = Project
+
 type TaskDraft = Omit<Task, 'id' | 'done' | 'createdAt'>
 
 type AssistantResult = {
@@ -93,9 +97,32 @@ type Project = {
   title: string
   course: string
   due: string
+  description: string
   progress: number
   accent: string
+  createdAt: string
 }
+
+type ProjectSubtask = {
+  id: string
+  projectId: string
+  title: string
+  done: boolean
+  createdAt: string
+}
+
+type ProjectSubtaskRow = Omit<ProjectSubtask, 'done'> & {
+  done: number
+}
+
+type Subject = {
+  id: string
+  name: string
+  createdAt: string
+}
+
+type ProjectDraft = Omit<Project, 'id' | 'createdAt'>
+type ProjectSubtaskDraft = Omit<ProjectSubtask, 'id' | 'createdAt'>
 
 type Theme = {
   name: ThemeName
@@ -143,7 +170,7 @@ const themes: Record<ThemeName, Theme> = {
   },
 }
 
-const courses = [
+const starterSubjectNames = [
   'Gestion de Proyectos',
   'Base de Datos',
   'Interaccion Humano-Computador',
@@ -153,22 +180,73 @@ const courses = [
 
 const weekLabels = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
 
-const projects: Project[] = [
+const projectAccents = ['#5dd6cf', '#8bb7ff', '#f2bf65', '#63d8ad', '#ff7a8a', '#b8a7ff']
+
+const starterSubjects = (): Subject[] =>
+  starterSubjectNames.map((name) => ({
+    id: makeId(),
+    name,
+    createdAt: new Date().toISOString(),
+  }))
+
+const starterProjects = (): Project[] => [
   {
     id: 'projectx',
     title: 'ProjectX',
     course: 'Interaccion Humano-Computador',
     due: 'Entrega parcial',
+    description: 'Prototipo, prueba de usabilidad y entrega documentada para IHC.',
     progress: 72,
     accent: '#5dd6cf',
+    createdAt: new Date().toISOString(),
   },
   {
     id: 'capm',
     title: 'Certificacion CAPM',
     course: 'Preparacion profesional',
     due: 'Simulacro viernes',
+    description: 'Plan de practica con simulacros, lectura PMBOK y revision de errores.',
     progress: 46,
     accent: '#8bb7ff',
+    createdAt: new Date().toISOString(),
+  },
+]
+
+const starterProjectSubtasks = (): ProjectSubtask[] => [
+  {
+    id: makeId(),
+    projectId: 'projectx',
+    title: 'Cerrar alcance y criterios de evaluacion',
+    done: true,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: makeId(),
+    projectId: 'projectx',
+    title: 'Preparar prototipo navegable',
+    done: true,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: makeId(),
+    projectId: 'projectx',
+    title: 'Documentar hallazgos de la prueba',
+    done: false,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: makeId(),
+    projectId: 'capm',
+    title: 'Resolver simulacro cronometrado',
+    done: false,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: makeId(),
+    projectId: 'capm',
+    title: 'Repasar dominios con menor puntaje',
+    done: false,
+    createdAt: new Date().toISOString(),
   },
 ]
 
@@ -277,6 +355,29 @@ async function setupDatabase(db: SQLite.SQLiteDatabase) {
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS subjects (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL UNIQUE,
+      createdAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY NOT NULL,
+      title TEXT NOT NULL,
+      course TEXT NOT NULL,
+      due TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      progress INTEGER NOT NULL DEFAULT 0,
+      accent TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS project_subtasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      projectId TEXT NOT NULL,
+      title TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
+    );
   `)
 }
 
@@ -304,6 +405,72 @@ async function insertTask(db: SQLite.SQLiteDatabase, task: Task) {
     task.imageUri,
     task.audioUri,
     task.createdAt,
+  )
+}
+
+async function loadSubjects(db: SQLite.SQLiteDatabase) {
+  return db.getAllAsync<SubjectRow>('SELECT * FROM subjects ORDER BY name ASC;')
+}
+
+async function insertSubject(db: SQLite.SQLiteDatabase, subject: Subject) {
+  await db.runAsync(
+    'INSERT OR IGNORE INTO subjects (id, name, createdAt) VALUES (?, ?, ?);',
+    subject.id,
+    subject.name,
+    subject.createdAt,
+  )
+}
+
+async function loadProjects(db: SQLite.SQLiteDatabase) {
+  return db.getAllAsync<ProjectRow>('SELECT * FROM projects ORDER BY createdAt DESC;')
+}
+
+async function insertProject(db: SQLite.SQLiteDatabase, project: Project) {
+  await db.runAsync(
+    `INSERT INTO projects
+      (id, title, course, due, description, progress, accent, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+    project.id,
+    project.title,
+    project.course,
+    project.due,
+    project.description,
+    project.progress,
+    project.accent,
+    project.createdAt,
+  )
+}
+
+async function updateProjectInDb(db: SQLite.SQLiteDatabase, project: Project) {
+  await db.runAsync(
+    `UPDATE projects
+      SET title = ?, course = ?, due = ?, description = ?, progress = ?, accent = ?
+      WHERE id = ?;`,
+    project.title,
+    project.course,
+    project.due,
+    project.description,
+    project.progress,
+    project.accent,
+    project.id,
+  )
+}
+
+async function loadProjectSubtasks(db: SQLite.SQLiteDatabase) {
+  const rows = await db.getAllAsync<ProjectSubtaskRow>(
+    'SELECT * FROM project_subtasks ORDER BY done ASC, createdAt ASC;',
+  )
+  return rows.map((row) => ({ ...row, done: row.done === 1 }))
+}
+
+async function insertProjectSubtask(db: SQLite.SQLiteDatabase, subtask: ProjectSubtask) {
+  await db.runAsync(
+    'INSERT INTO project_subtasks (id, projectId, title, done, createdAt) VALUES (?, ?, ?, ?, ?);',
+    subtask.id,
+    subtask.projectId,
+    subtask.title,
+    subtask.done ? 1 : 0,
+    subtask.createdAt,
   )
 }
 
@@ -380,8 +547,8 @@ function getTimeFromText(text: string) {
   return `${match[1].padStart(2, '0')}:${match[2]}`
 }
 
-function getCourseFromText(normalized: string) {
-  return courses.find((item) => normalized.includes(normalizeText(item))) ?? courses[0]
+function getCourseFromText(normalized: string, subjects: string[]) {
+  return subjects.find((item) => normalized.includes(normalizeText(item))) ?? subjects[0] ?? 'General'
 }
 
 function cleanTaskTitleFromCommand(question: string) {
@@ -407,9 +574,9 @@ function buildPlan(tasks: Task[]) {
     .join('\n')}`
 }
 
-function summarizeWorkload(tasks: Task[]) {
+function summarizeWorkload(tasks: Task[], subjects: string[]) {
   const pending = tasks.filter((task) => !task.done)
-  const byCourse = courses
+  const byCourse = subjects
     .map((course) => {
       const count = pending.filter((task) => task.course === course).length
       return count > 0 ? `${course}: ${count}` : null
@@ -420,7 +587,7 @@ function summarizeWorkload(tasks: Task[]) {
   return `Tienes ${pending.length} pendientes. Carga por materia:\n${byCourse.join('\n')}`
 }
 
-function runLocalAssistant(question: string, tasks: Task[]): AssistantResult {
+function runLocalAssistant(question: string, tasks: Task[], subjects: string[]): AssistantResult {
   const normalized = normalizeText(question)
   const wantsCreate =
     /^(crea|crear|agrega|agregar|anade|añade|nueva)\s+(una\s+)?(tarea|actividad|deber)/i.test(
@@ -439,7 +606,7 @@ function runLocalAssistant(question: string, tasks: Task[]): AssistantResult {
     const taskDraft: TaskDraft = {
       title,
       description: 'Creada por el asistente local desde un comando de texto.',
-      course: getCourseFromText(normalized),
+      course: getCourseFromText(normalized, subjects),
       date: getDateFromQuestion(question) ?? formatIso(new Date()),
       time: getTimeFromText(question),
       priority: getPriorityFromText(normalized),
@@ -459,7 +626,7 @@ function runLocalAssistant(question: string, tasks: Task[]): AssistantResult {
   }
 
   if (normalized.includes('resumen') || normalized.includes('carga') || normalized.includes('materias')) {
-    return { answer: summarizeWorkload(tasks) }
+    return { answer: summarizeWorkload(tasks, subjects) }
   }
 
   const onlyPending = !normalized.includes('completad')
@@ -471,7 +638,7 @@ function runLocalAssistant(question: string, tasks: Task[]): AssistantResult {
     matches = matches.filter((task) => task.date === date)
   }
 
-  const course = courses.find((item) => normalized.includes(normalizeText(item)))
+  const course = subjects.find((item) => normalized.includes(normalizeText(item)))
   if (course) {
     matches = matches.filter((task) => task.course === course)
   }
@@ -528,9 +695,16 @@ export default function App() {
   const [fontScale, setFontScale] = useState<FontScale>(1)
   const [voiceMode, setVoiceMode] = useState(false)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectSubtasks, setProjectSubtasks] = useState<ProjectSubtask[]>([])
   const [query, setQuery] = useState('')
   const [modalVisible, setModalVisible] = useState(false)
+  const [subjectModalVisible, setSubjectModalVisible] = useState(false)
+  const [projectModalVisible, setProjectModalVisible] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState(formatIso(new Date()))
   const [isReady, setIsReady] = useState(false)
   const theme = themes[themeName]
@@ -552,6 +726,29 @@ export default function App() {
         }
       }
 
+      const subjectCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM subjects;')
+      if ((subjectCount?.count ?? 0) === 0) {
+        for (const subject of starterSubjects()) {
+          await insertSubject(db, subject)
+        }
+      }
+
+      const projectCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM projects;')
+      if ((projectCount?.count ?? 0) === 0) {
+        for (const project of starterProjects()) {
+          await insertProject(db, project)
+        }
+      }
+
+      const subtaskCount = await db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) as count FROM project_subtasks;',
+      )
+      if ((subtaskCount?.count ?? 0) === 0) {
+        for (const subtask of starterProjectSubtasks()) {
+          await insertProjectSubtask(db, subtask)
+        }
+      }
+
       const savedTheme = await db.getFirstAsync<{ value: ThemeName }>(
         'SELECT value FROM settings WHERE key = ?;',
         'theme',
@@ -565,9 +762,15 @@ export default function App() {
         'voiceMode',
       )
       const nextTasks = await loadTasks(db)
+      const nextSubjects = await loadSubjects(db)
+      const nextProjects = await loadProjects(db)
+      const nextProjectSubtasks = await loadProjectSubtasks(db)
 
       if (!mounted) return
       setTasks(nextTasks)
+      setSubjects(nextSubjects)
+      setProjects(nextProjects)
+      setProjectSubtasks(nextProjectSubtasks)
       if (savedTheme?.value === 'dark' || savedTheme?.value === 'light') {
         setThemeName(savedTheme.value)
       }
@@ -625,10 +828,29 @@ export default function App() {
     setTasks(await loadTasks(db))
   }
 
+  const refreshSubjects = async () => {
+    const db = dbRef.current
+    if (!db) return
+    setSubjects(await loadSubjects(db))
+  }
+
+  const refreshProjects = async () => {
+    const db = dbRef.current
+    if (!db) return
+    setProjects(await loadProjects(db))
+    setProjectSubtasks(await loadProjectSubtasks(db))
+  }
+
   const filteredTasks = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
+    const normalized = normalizeText(query.trim())
     return tasks.filter((task) =>
-      normalized ? `${task.title} ${task.course} ${task.description}`.toLowerCase().includes(normalized) : true,
+      normalized
+        ? normalizeText(
+            `${task.title} ${task.course} ${task.description} ${task.audioUri ? 'voz audio microfono' : ''} ${
+              task.imageUri ? 'imagen foto' : ''
+            }`,
+          ).includes(normalized)
+        : true,
     )
   }, [query, tasks])
 
@@ -638,6 +860,77 @@ export default function App() {
   const audioCount = tasks.filter((task) => task.audioUri).length
   const imageCount = tasks.filter((task) => task.imageUri).length
   const selectedTask = selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) ?? null : null
+  const selectedCourseTasks = selectedCourse
+    ? tasks.filter((task) => task.course === selectedCourse).sort((a, b) => `${a.done}`.localeCompare(`${b.done}`))
+    : []
+  const selectedProject = selectedProjectId
+    ? projects.find((project) => project.id === selectedProjectId) ?? null
+    : null
+  const selectedProjectSubtasks = selectedProject
+    ? projectSubtasks.filter((subtask) => subtask.projectId === selectedProject.id)
+    : []
+  const subjectNames = subjects.map((subject) => subject.name)
+
+  const addSubject = async (name: string) => {
+    const cleanName = name.trim()
+    const db = dbRef.current
+    if (!db || !cleanName) return
+    await insertSubject(db, { id: makeId(), name: cleanName, createdAt: new Date().toISOString() })
+    await refreshSubjects()
+  }
+
+  const addProject = async (input: ProjectDraft) => {
+    const db = dbRef.current
+    if (!db) return
+    await insertProject(db, { ...input, id: makeId(), createdAt: new Date().toISOString() })
+    await refreshProjects()
+    setProjectModalVisible(false)
+    setActiveTab('projects')
+  }
+
+  const updateProject = async (project: Project) => {
+    const db = dbRef.current
+    if (!db) return
+    await updateProjectInDb(db, project)
+    await refreshProjects()
+  }
+
+  const deleteProject = async (project: Project) => {
+    Alert.alert('Eliminar proyecto', `Se eliminara "${project.title}" y sus subtareas.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          await dbRef.current?.runAsync('DELETE FROM project_subtasks WHERE projectId = ?;', project.id)
+          await dbRef.current?.runAsync('DELETE FROM projects WHERE id = ?;', project.id)
+          if (selectedProjectId === project.id) setSelectedProjectId(null)
+          await refreshProjects()
+        },
+      },
+    ])
+  }
+
+  const addProjectSubtask = async (input: ProjectSubtaskDraft) => {
+    const db = dbRef.current
+    if (!db) return
+    await insertProjectSubtask(db, { ...input, id: makeId(), createdAt: new Date().toISOString() })
+    await refreshProjects()
+  }
+
+  const toggleProjectSubtask = async (subtask: ProjectSubtask) => {
+    await dbRef.current?.runAsync(
+      'UPDATE project_subtasks SET done = ? WHERE id = ?;',
+      subtask.done ? 0 : 1,
+      subtask.id,
+    )
+    await refreshProjects()
+  }
+
+  const deleteProjectSubtask = async (subtask: ProjectSubtask) => {
+    await dbRef.current?.runAsync('DELETE FROM project_subtasks WHERE id = ?;', subtask.id)
+    await refreshProjects()
+  }
 
   const addTask = async (input: TaskDraft) => {
     const db = dbRef.current
@@ -702,10 +995,24 @@ export default function App() {
           const db = dbRef.current
           if (!db) return
           await db.runAsync('DELETE FROM tasks;')
+          await db.runAsync('DELETE FROM subjects;')
+          await db.runAsync('DELETE FROM project_subtasks;')
+          await db.runAsync('DELETE FROM projects;')
           for (const task of starterTasks()) {
             await insertTask(db, task)
           }
+          for (const subject of starterSubjects()) {
+            await insertSubject(db, subject)
+          }
+          for (const project of starterProjects()) {
+            await insertProject(db, project)
+          }
+          for (const subtask of starterProjectSubtasks()) {
+            await insertProjectSubtask(db, subtask)
+          }
           await refreshTasks()
+          await refreshSubjects()
+          await refreshProjects()
         },
       },
     ])
@@ -734,7 +1041,17 @@ export default function App() {
             keyboardShouldPersistTaps="handled"
           >
             <Header pendingCount={pendingCount} styles={styles} theme={theme} />
-            <SearchBar query={query} setQuery={setQuery} styles={styles} theme={theme} />
+            <SearchBar
+              query={query}
+              setQuery={setQuery}
+              styles={styles}
+              theme={theme}
+              onMicPress={() => {
+                setQuery((current) => (normalizeText(current).includes('voz') ? '' : 'voz'))
+                setActiveTab('calendar')
+              }}
+              onAssistantPress={() => setActiveTab('assistant')}
+            />
 
             {activeTab === 'home' && (
               <HomeView
@@ -750,9 +1067,9 @@ export default function App() {
                 audioCount={audioCount}
                 imageCount={imageCount}
                 onOpenTask={setSelectedTaskId}
-                allTasks={tasks}
-                voiceMode={voiceMode}
-                onAssistantCreateTask={addTask}
+                projects={projects}
+                subtasks={projectSubtasks}
+                onOpenProject={setSelectedProjectId}
               />
             )}
             {activeTab === 'calendar' && (
@@ -769,7 +1086,28 @@ export default function App() {
               />
             )}
             {activeTab === 'projects' && (
-              <ProjectsView styles={styles} tasks={tasks} theme={theme} />
+              <ProjectsView
+                styles={styles}
+                tasks={tasks}
+                theme={theme}
+                projects={projects}
+                subjects={subjects}
+                subtasks={projectSubtasks}
+                onAddProject={() => setProjectModalVisible(true)}
+                onAddSubject={() => setSubjectModalVisible(true)}
+                onOpenCourse={setSelectedCourse}
+                onOpenProject={setSelectedProjectId}
+              />
+            )}
+            {activeTab === 'assistant' && (
+              <AssistantView
+                styles={styles}
+                tasks={tasks}
+                theme={theme}
+                voiceMode={voiceMode}
+                subjects={subjectNames}
+                onCreateTask={addTask}
+              />
             )}
             {activeTab === 'settings' && (
               <SettingsView
@@ -801,9 +1139,25 @@ export default function App() {
         defaultDate={today}
         onClose={() => setModalVisible(false)}
         onSubmit={addTask}
+        courses={subjectNames}
         styles={styles}
         theme={theme}
         visible={modalVisible}
+      />
+      <SubjectModal
+        onClose={() => setSubjectModalVisible(false)}
+        onSubmit={addSubject}
+        styles={styles}
+        theme={theme}
+        visible={subjectModalVisible}
+      />
+      <ProjectModal
+        courses={subjectNames}
+        onClose={() => setProjectModalVisible(false)}
+        onSubmit={addProject}
+        styles={styles}
+        theme={theme}
+        visible={projectModalVisible}
       />
       <TaskDetailModal
         task={selectedTask}
@@ -812,6 +1166,30 @@ export default function App() {
         onPlayAudio={playAudio}
         onSave={updateTask}
         voiceMode={voiceMode}
+        styles={styles}
+        theme={theme}
+      />
+      <CourseTasksModal
+        course={selectedCourse}
+        tasks={selectedCourseTasks}
+        onClose={() => setSelectedCourse(null)}
+        onOpenTask={setSelectedTaskId}
+        toggleTask={toggleTask}
+        deleteTask={deleteTask}
+        playAudio={playAudio}
+        styles={styles}
+        theme={theme}
+      />
+      <ProjectDetailModal
+        project={selectedProject}
+        subtasks={selectedProjectSubtasks}
+        courses={subjectNames}
+        onClose={() => setSelectedProjectId(null)}
+        onSave={updateProject}
+        onDelete={deleteProject}
+        onAddSubtask={addProjectSubtask}
+        onToggleSubtask={toggleProjectSubtask}
+        onDeleteSubtask={deleteProjectSubtask}
         styles={styles}
         theme={theme}
       />
@@ -843,13 +1221,17 @@ function Header({
 }
 
 function SearchBar({
+  onAssistantPress,
+  onMicPress,
   query,
   setQuery,
   styles,
   theme,
 }: {
+  onAssistantPress: () => void
+  onMicPress: () => void
   query: string
-  setQuery: (value: string) => void
+  setQuery: Dispatch<SetStateAction<string>>
   styles: ReturnType<typeof createStyles>
   theme: Theme
 }) {
@@ -863,7 +1245,12 @@ function SearchBar({
         value={query}
         onChangeText={setQuery}
       />
-      <Mic color={theme.muted} size={24} />
+      <Pressable style={styles.searchIconButton} onPress={onAssistantPress}>
+        <Bot color={theme.muted} size={21} />
+      </Pressable>
+      <Pressable style={styles.searchIconButton} onPress={onMicPress}>
+        <Mic color={theme.muted} size={22} />
+      </Pressable>
     </View>
   )
 }
@@ -881,9 +1268,9 @@ function HomeView({
   audioCount,
   imageCount,
   onOpenTask,
-  allTasks,
-  voiceMode,
-  onAssistantCreateTask,
+  projects,
+  subtasks,
+  onOpenProject,
 }: {
   completedCount: number
   pendingCount: number
@@ -897,10 +1284,12 @@ function HomeView({
   audioCount: number
   imageCount: number
   onOpenTask: (taskId: string) => void
-  allTasks: Task[]
-  voiceMode: boolean
-  onAssistantCreateTask: (task: TaskDraft) => Promise<void>
+  projects: Project[]
+  subtasks: ProjectSubtask[]
+  onOpenProject: (projectId: string) => void
 }) {
+  const activeProjects = projects.slice(0, 4)
+
   return (
     <View style={styles.stack}>
       <View style={styles.metricsGrid}>
@@ -914,16 +1303,6 @@ function HomeView({
       </View>
 
       <View>
-        <LocalAssistant
-          styles={styles}
-          tasks={allTasks}
-          theme={theme}
-          voiceMode={voiceMode}
-          onCreateTask={onAssistantCreateTask}
-        />
-      </View>
-
-      <View>
         <SectionTitle
           action="Ver todos"
           onAction={() => setActiveTab('projects')}
@@ -932,8 +1311,15 @@ function HomeView({
           title="Proyectos Activos"
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.projectRail}>
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} styles={styles} theme={theme} />
+          {activeProjects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              styles={styles}
+              theme={theme}
+              subtasks={subtasks.filter((subtask) => subtask.projectId === project.id)}
+              onPress={() => onOpenProject(project.id)}
+            />
           ))}
         </ScrollView>
       </View>
@@ -1028,40 +1414,66 @@ function CalendarView({
 }
 
 function ProjectsView({
+  onAddProject,
+  onAddSubject,
+  onOpenCourse,
+  onOpenProject,
+  projects,
   styles,
+  subjects,
+  subtasks,
   tasks,
   theme,
 }: {
+  onAddProject: () => void
+  onAddSubject: () => void
+  onOpenCourse: (course: string) => void
+  onOpenProject: (projectId: string) => void
+  projects: Project[]
   styles: ReturnType<typeof createStyles>
+  subjects: Subject[]
+  subtasks: ProjectSubtask[]
   tasks: Task[]
   theme: Theme
 }) {
   return (
     <View style={styles.stack}>
       <View>
-        <SectionTitle styles={styles} theme={theme} title="Proyectos" />
+        <SectionTitle action="Nuevo" onAction={onAddProject} styles={styles} theme={theme} title="Proyectos" />
         <View style={styles.projectList}>
           {projects.map((project) => (
-            <ProjectCard key={project.id} large project={project} styles={styles} theme={theme} />
+            <ProjectCard
+              key={project.id}
+              large
+              project={project}
+              styles={styles}
+              theme={theme}
+              subtasks={subtasks.filter((subtask) => subtask.projectId === project.id)}
+              onPress={() => onOpenProject(project.id)}
+            />
           ))}
         </View>
       </View>
 
       <View>
-        <SectionTitle styles={styles} theme={theme} title="Carga por asignatura" />
+        <SectionTitle action="Agregar" onAction={onAddSubject} styles={styles} theme={theme} title="Carga por asignatura" />
         <View style={styles.courseList}>
-          {courses.map((course) => {
-            const amount = tasks.filter((task) => task.course === course && !task.done).length
+          {subjects.map((subject) => {
+            const courseTasks = tasks.filter((task) => task.course === subject.name)
+            const amount = courseTasks.filter((task) => !task.done).length
             return (
-              <View key={course} style={styles.courseCard}>
+              <Pressable key={subject.id} style={styles.courseCard} onPress={() => onOpenCourse(subject.name)}>
                 <View style={styles.courseIcon}>
                   <BookOpen color={theme.accent} size={19} />
                 </View>
-                <View>
-                  <Text style={styles.courseTitle}>{course}</Text>
-                  <Text style={styles.cardMuted}>{amount} pendientes</Text>
+                <View style={styles.settingsCopy}>
+                  <Text style={styles.courseTitle}>{subject.name}</Text>
+                  <Text style={styles.cardMuted}>
+                    {amount} pendientes | {courseTasks.length} tareas
+                  </Text>
                 </View>
-              </View>
+                <ChevronRight color={theme.muted} size={20} />
+              </Pressable>
             )
           })}
         </View>
@@ -1187,22 +1599,24 @@ function SettingsView({
   )
 }
 
-function LocalAssistant({
+function AssistantView({
+  onCreateTask,
   styles,
+  subjects,
   tasks,
   theme,
   voiceMode,
-  onCreateTask,
 }: {
+  onCreateTask: (task: TaskDraft) => Promise<void>
   styles: ReturnType<typeof createStyles>
+  subjects: string[]
   tasks: Task[]
   theme: Theme
   voiceMode: boolean
-  onCreateTask: (task: TaskDraft) => Promise<void>
 }) {
   const [question, setQuestion] = useState('Que deber tengo para el martes?')
   const [answer, setAnswer] = useState(
-    'Soy un asistente local: respondo usando tus tareas guardadas en SQLite, sin internet.',
+    'Soy un asistente local: consulto tareas, creo actividades, resumo carga y ayudo a priorizar sin internet.',
   )
 
   const handleResult = async (result: AssistantResult) => {
@@ -1215,7 +1629,7 @@ function LocalAssistant({
 
   const ask = async () => {
     if (!question.trim()) return
-    await handleResult(runLocalAssistant(question, tasks))
+    await handleResult(runLocalAssistant(question, tasks, subjects))
   }
 
   const quickQuestions = [
@@ -1228,55 +1642,466 @@ function LocalAssistant({
   ]
 
   return (
-    <View style={styles.assistantCard}>
-      <View style={styles.assistantHeader}>
-        <View style={styles.courseIcon}>
-          <Bot color={theme.accent} size={21} />
-        </View>
-        <View style={styles.settingsCopy}>
-          <Text style={styles.courseTitle}>Asistente local</Text>
-          <Text style={styles.cardMuted}>Pregunta por dias, materias, audios, imagenes o pendientes.</Text>
+    <View style={styles.stack}>
+      <View>
+        <SectionTitle styles={styles} theme={theme} title="IA local" />
+        <View style={styles.infoPanel}>
+          <Bot color={theme.accent} size={22} />
+          <View style={styles.settingsCopy}>
+            <Text style={styles.courseTitle}>Modelo local mejorado</Text>
+            <Text style={styles.cardMuted}>
+              Entiende dias, prioridades, asignaturas, multimedia, planes de estudio y comandos para crear tareas.
+            </Text>
+          </View>
         </View>
       </View>
-      <View style={styles.assistantInputRow}>
-        <TextInput
-          placeholder="Ej. que deber tengo para el martes"
-          placeholderTextColor={theme.muted}
-          style={styles.assistantInput}
-          value={question}
-          onChangeText={setQuestion}
-        />
-        <Pressable style={styles.sendButton} onPress={ask}>
-          <Send color="#041113" size={18} />
-        </Pressable>
-      </View>
-      <View style={styles.quickCommandGrid}>
-        {quickQuestions.map((item) => (
-          <Pressable
-            key={item}
-            style={styles.quickCommand}
-            onPress={async () => {
-              const result = runLocalAssistant(item, tasks)
-              setQuestion(item)
-              await handleResult(result)
-            }}
-          >
-            <Text style={styles.quickCommandText}>{item}</Text>
+
+      <View style={styles.assistantCard}>
+        <View style={styles.assistantHeader}>
+          <View style={styles.courseIcon}>
+            <Bot color={theme.accent} size={21} />
+          </View>
+          <View style={styles.settingsCopy}>
+            <Text style={styles.courseTitle}>Asistente academico</Text>
+            <Text style={styles.cardMuted}>Pregunta por dias, materias, audios, imagenes o pendientes.</Text>
+          </View>
+        </View>
+        <View style={styles.assistantInputRow}>
+          <TextInput
+            placeholder="Ej. que deber tengo para el martes"
+            placeholderTextColor={theme.muted}
+            style={styles.assistantInput}
+            value={question}
+            onChangeText={setQuestion}
+          />
+          <Pressable style={styles.sendButton} onPress={ask}>
+            <Send color="#041113" size={18} />
           </Pressable>
-        ))}
-      </View>
-      <Text style={styles.assistantAnswer}>{answer}</Text>
-      <View style={styles.assistantVoiceRow}>
-        <Pressable style={styles.voiceAction} onPress={() => speakText(answer)}>
-          <Play color={theme.accent} size={16} />
-          <Text style={styles.mediaBadgeText}>Leer respuesta</Text>
-        </Pressable>
-        <Pressable style={styles.voiceAction} onPress={() => Speech.stop()}>
-          <Pause color={theme.accent} size={16} />
-          <Text style={styles.mediaBadgeText}>Detener voz</Text>
-        </Pressable>
+        </View>
+        <View style={styles.quickCommandGrid}>
+          {quickQuestions.map((item) => (
+            <Pressable
+              key={item}
+              style={styles.quickCommand}
+              onPress={async () => {
+                const result = runLocalAssistant(item, tasks, subjects)
+                setQuestion(item)
+                await handleResult(result)
+              }}
+            >
+              <Text style={styles.quickCommandText}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.assistantAnswer}>{answer}</Text>
+        <View style={styles.assistantVoiceRow}>
+          <Pressable style={styles.voiceAction} onPress={() => speakText(answer)}>
+            <Play color={theme.accent} size={16} />
+            <Text style={styles.mediaBadgeText}>Leer respuesta</Text>
+          </Pressable>
+          <Pressable style={styles.voiceAction} onPress={() => Speech.stop()}>
+            <Pause color={theme.accent} size={16} />
+            <Text style={styles.mediaBadgeText}>Detener voz</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
+  )
+}
+
+function SubjectModal({
+  onClose,
+  onSubmit,
+  styles,
+  theme,
+  visible,
+}: {
+  onClose: () => void
+  onSubmit: (name: string) => Promise<void>
+  styles: ReturnType<typeof createStyles>
+  theme: Theme
+  visible: boolean
+}) {
+  const [name, setName] = useState('')
+
+  const submit = async () => {
+    if (!name.trim()) {
+      Alert.alert('Falta el nombre', 'Escribe el nombre de la asignatura.')
+      return
+    }
+    await onSubmit(name)
+    setName('')
+    onClose()
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.eyebrow}>Nueva asignatura</Text>
+                <Text style={styles.modalTitle}>Agregar materia</Text>
+              </View>
+              <Pressable onPress={onClose} hitSlop={10}>
+                <X color={theme.muted} size={22} />
+              </Pressable>
+            </View>
+            <TextInput
+              placeholder="Ej. Arquitectura de Software"
+              placeholderTextColor={theme.muted}
+              style={styles.field}
+              value={name}
+              onChangeText={setName}
+            />
+            <Pressable style={styles.primaryAction} onPress={submit}>
+              <Plus color="#041113" size={18} />
+              <Text style={styles.primaryActionText}>Guardar asignatura</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  )
+}
+
+function ProjectModal({
+  courses,
+  onClose,
+  onSubmit,
+  styles,
+  theme,
+  visible,
+}: {
+  courses: string[]
+  onClose: () => void
+  onSubmit: (project: ProjectDraft) => Promise<void>
+  styles: ReturnType<typeof createStyles>
+  theme: Theme
+  visible: boolean
+}) {
+  const [title, setTitle] = useState('')
+  const [course, setCourse] = useState(courses[0] ?? 'General')
+  const [due, setDue] = useState('Entrega pendiente')
+  const [description, setDescription] = useState('')
+  const [progress, setProgress] = useState('0')
+  const [accent, setAccent] = useState(projectAccents[0])
+
+  useEffect(() => {
+    if (visible && courses.length && !courses.includes(course)) setCourse(courses[0])
+  }, [course, courses, visible])
+
+  const submit = async () => {
+    if (!title.trim()) {
+      Alert.alert('Falta el titulo', 'Escribe un nombre para el proyecto.')
+      return
+    }
+    await onSubmit({
+      title: title.trim(),
+      course,
+      due: due.trim() || 'Entrega pendiente',
+      description: description.trim(),
+      progress: Math.max(0, Math.min(100, Number(progress) || 0)),
+      accent,
+    })
+    setTitle('')
+    setDescription('')
+    setDue('Entrega pendiente')
+    setProgress('0')
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.eyebrow}>Nuevo proyecto</Text>
+                <Text style={styles.modalTitle}>Crear proyecto</Text>
+              </View>
+              <Pressable onPress={onClose} hitSlop={10}>
+                <X color={theme.muted} size={22} />
+              </Pressable>
+            </View>
+
+            <TextInput
+              placeholder="Ej. App academica final"
+              placeholderTextColor={theme.muted}
+              style={styles.field}
+              value={title}
+              onChangeText={setTitle}
+            />
+            <TextInput
+              multiline
+              placeholder="Objetivo, entregables, enlaces o notas"
+              placeholderTextColor={theme.muted}
+              style={[styles.field, styles.textArea]}
+              value={description}
+              onChangeText={setDescription}
+            />
+
+            <Text style={styles.formLabel}>Asignatura</Text>
+            <View style={styles.chipRow}>
+              {courses.map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setCourse(item)}
+                  style={[styles.chip, course === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, course === item && { color: theme.accent }]}>{item}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={styles.formColumn}>
+                <Text style={styles.formLabel}>Entrega</Text>
+                <TextInput style={styles.field} value={due} onChangeText={setDue} />
+              </View>
+              <View style={styles.formColumn}>
+                <Text style={styles.formLabel}>Progreso</Text>
+                <TextInput keyboardType="numeric" style={styles.field} value={progress} onChangeText={setProgress} />
+              </View>
+            </View>
+
+            <Text style={styles.formLabel}>Color</Text>
+            <View style={styles.swatchRow}>
+              {projectAccents.map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setAccent(item)}
+                  style={[styles.swatch, { backgroundColor: item }, accent === item && styles.swatchActive]}
+                />
+              ))}
+            </View>
+
+            <Pressable style={styles.primaryAction} onPress={submit}>
+              <FolderOpen color="#041113" size={18} />
+              <Text style={styles.primaryActionText}>Guardar proyecto</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  )
+}
+
+function CourseTasksModal({
+  course,
+  deleteTask,
+  onClose,
+  onOpenTask,
+  playAudio,
+  styles,
+  tasks,
+  theme,
+  toggleTask,
+}: {
+  course: string | null
+  deleteTask: (task: Task) => void
+  onClose: () => void
+  onOpenTask: (taskId: string) => void
+  playAudio: (uri: string) => void
+  styles: ReturnType<typeof createStyles>
+  tasks: Task[]
+  theme: Theme
+  toggleTask: (taskId: string) => void
+}) {
+  if (!course) return null
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.eyebrow}>Carga por asignatura</Text>
+                <Text style={styles.modalTitle}>{course}</Text>
+              </View>
+              <Pressable onPress={onClose} hitSlop={10}>
+                <X color={theme.muted} size={22} />
+              </Pressable>
+            </View>
+            <View style={styles.detailInfoBox}>
+              <Text style={styles.cardMuted}>Pendientes</Text>
+              <Text style={styles.courseTitle}>{tasks.filter((task) => !task.done).length} deberes por resolver</Text>
+            </View>
+            <TaskList
+              emptyText="No hay deberes en esta asignatura."
+              styles={styles}
+              tasks={tasks}
+              theme={theme}
+              toggleTask={toggleTask}
+              deleteTask={deleteTask}
+              playAudio={playAudio}
+              onOpenTask={onOpenTask}
+            />
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  )
+}
+
+function ProjectDetailModal({
+  courses,
+  onAddSubtask,
+  onClose,
+  onDelete,
+  onDeleteSubtask,
+  onSave,
+  onToggleSubtask,
+  project,
+  styles,
+  subtasks,
+  theme,
+}: {
+  courses: string[]
+  onAddSubtask: (subtask: ProjectSubtaskDraft) => Promise<void>
+  onClose: () => void
+  onDelete: (project: Project) => void
+  onDeleteSubtask: (subtask: ProjectSubtask) => void
+  onSave: (project: Project) => void
+  onToggleSubtask: (subtask: ProjectSubtask) => void
+  project: Project | null
+  styles: ReturnType<typeof createStyles>
+  subtasks: ProjectSubtask[]
+  theme: Theme
+}) {
+  const [title, setTitle] = useState('')
+  const [course, setCourse] = useState('')
+  const [due, setDue] = useState('')
+  const [description, setDescription] = useState('')
+  const [progress, setProgress] = useState('0')
+  const [newSubtask, setNewSubtask] = useState('')
+
+  useEffect(() => {
+    if (!project) return
+    setTitle(project.title)
+    setCourse(project.course)
+    setDue(project.due)
+    setDescription(project.description)
+    setProgress(String(project.progress))
+    setNewSubtask('')
+  }, [project])
+
+  if (!project) return null
+
+  const done = subtasks.filter((subtask) => subtask.done).length
+  const computedProgress = subtasks.length ? Math.round((done / subtasks.length) * 100) : Number(progress) || 0
+
+  const save = () => {
+    if (!title.trim()) {
+      Alert.alert('Falta el titulo', 'El proyecto necesita un titulo.')
+      return
+    }
+    onSave({
+      ...project,
+      title: title.trim(),
+      course: course || project.course,
+      due: due.trim() || project.due,
+      description: description.trim(),
+      progress: Math.max(0, Math.min(100, computedProgress)),
+    })
+  }
+
+  const addSubtask = async () => {
+    if (!newSubtask.trim()) return
+    await onAddSubtask({ projectId: project.id, title: newSubtask.trim(), done: false })
+    setNewSubtask('')
+  }
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.eyebrow}>Detalle de proyecto</Text>
+                <Text style={styles.modalTitle}>{project.title}</Text>
+              </View>
+              <Pressable onPress={onClose} hitSlop={10}>
+                <X color={theme.muted} size={22} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.formLabel}>Titulo</Text>
+            <TextInput style={styles.field} value={title} onChangeText={setTitle} />
+            <Text style={styles.formLabel}>Descripcion</Text>
+            <TextInput multiline style={[styles.field, styles.textArea]} value={description} onChangeText={setDescription} />
+
+            <Text style={styles.formLabel}>Asignatura</Text>
+            <View style={styles.chipRow}>
+              {courses.map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setCourse(item)}
+                  style={[styles.chip, course === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, course === item && { color: theme.accent }]}>{item}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={styles.formColumn}>
+                <Text style={styles.formLabel}>Entrega</Text>
+                <TextInput style={styles.field} value={due} onChangeText={setDue} />
+              </View>
+              <View style={styles.formColumn}>
+                <Text style={styles.formLabel}>Progreso</Text>
+                <TextInput keyboardType="numeric" style={styles.field} value={String(computedProgress)} onChangeText={setProgress} />
+              </View>
+            </View>
+
+            <View style={styles.detailInfoBox}>
+              <Text style={styles.cardMuted}>Avance por subtareas</Text>
+              <Text style={styles.courseTitle}>{done}/{subtasks.length} completadas | {computedProgress}%</Text>
+            </View>
+
+            <View style={styles.assistantInputRow}>
+              <TextInput
+                placeholder="Nueva subtarea"
+                placeholderTextColor={theme.muted}
+                style={styles.assistantInput}
+                value={newSubtask}
+                onChangeText={setNewSubtask}
+              />
+              <Pressable style={styles.sendButton} onPress={addSubtask}>
+                <Plus color="#041113" size={18} />
+              </Pressable>
+            </View>
+
+            <View style={styles.subtaskList}>
+              {subtasks.map((subtask) => (
+                <View key={subtask.id} style={styles.subtaskRow}>
+                  <Pressable style={styles.taskCheck} onPress={() => onToggleSubtask(subtask)}>
+                    {subtask.done && <Check color={theme.text} size={17} strokeWidth={3} />}
+                  </Pressable>
+                  <Text style={[styles.subtaskText, subtask.done && styles.taskTitleDone]}>{subtask.title}</Text>
+                  <Pressable style={styles.iconButton} onPress={() => onDeleteSubtask(subtask)}>
+                    <Trash2 color={theme.soft} size={17} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+
+            <Pressable style={styles.primaryAction} onPress={save}>
+              <Save color="#041113" size={18} />
+              <Text style={styles.primaryActionText}>Guardar proyecto</Text>
+            </Pressable>
+            <Pressable style={styles.dangerAction} onPress={() => onDelete(project)}>
+              <Trash2 color="#ff7a8a" size={18} />
+              <Text style={styles.dangerActionText}>Eliminar proyecto</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
   )
 }
 
@@ -1430,6 +2255,7 @@ function TaskDetailModal({
 }
 
 function TaskModal({
+  courses,
   defaultDate,
   onClose,
   onSubmit,
@@ -1437,6 +2263,7 @@ function TaskModal({
   theme,
   visible,
 }: {
+  courses: string[]
   defaultDate: string
   onClose: () => void
   onSubmit: (task: TaskDraft) => void
@@ -1448,7 +2275,7 @@ function TaskModal({
   const recorderState = useAudioRecorderState(recorder)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [course, setCourse] = useState(courses[0])
+  const [course, setCourse] = useState(courses[0] ?? 'General')
   const [priority, setPriority] = useState<Priority>('Media')
   const [date, setDate] = useState(defaultDate)
   const [time, setTime] = useState('08:00')
@@ -1459,6 +2286,12 @@ function TaskModal({
   useEffect(() => {
     if (visible) setDate(defaultDate)
   }, [defaultDate, visible])
+
+  useEffect(() => {
+    if (visible && courses.length && !courses.includes(course)) {
+      setCourse(courses[0])
+    }
+  }, [course, courses, visible])
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -1680,39 +2513,46 @@ function SectionTitle({
 
 function ProjectCard({
   large,
+  onPress,
   project,
   styles,
+  subtasks,
   theme,
 }: {
   large?: boolean
+  onPress: () => void
   project: Project
   styles: ReturnType<typeof createStyles>
+  subtasks: ProjectSubtask[]
   theme: Theme
 }) {
+  const done = subtasks.filter((subtask) => subtask.done).length
+  const progress = subtasks.length ? Math.round((done / subtasks.length) * 100) : project.progress
+
   return (
-    <LinearGradient
-      colors={theme.name === 'dark' ? ['rgba(255,255,255,0.16)', theme.card] : ['#ffffff', theme.card]}
-      style={[styles.projectCard, large && styles.projectCardLarge]}
-    >
-      <View style={styles.projectTopline}>
-        <View style={[styles.projectMark, { backgroundColor: project.accent }]} />
-        <ChevronRight color={theme.muted} size={20} />
-      </View>
-      <Text style={styles.projectTitle}>{project.title}</Text>
-      <Text style={styles.cardMuted}>{project.course}</Text>
-      <View style={styles.progressRow}>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${project.progress}%`, backgroundColor: project.accent },
-            ]}
-          />
+    <Pressable onPress={onPress}>
+      <LinearGradient
+        colors={theme.name === 'dark' ? ['rgba(255,255,255,0.16)', theme.card] : ['#ffffff', theme.card]}
+        style={[styles.projectCard, large && styles.projectCardLarge]}
+      >
+        <View style={styles.projectTopline}>
+          <View style={[styles.projectMark, { backgroundColor: project.accent }]} />
+          <ChevronRight color={theme.muted} size={20} />
         </View>
-        <Text style={styles.progressText}>{project.progress}%</Text>
-      </View>
-      <Text style={styles.cardMuted}>{project.due}</Text>
-    </LinearGradient>
+        <Text style={styles.projectTitle}>{project.title}</Text>
+        <Text style={styles.cardMuted}>{project.course}</Text>
+        {!!project.description && large && <Text style={styles.taskDescription}>{project.description}</Text>}
+        <View style={styles.progressRow}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: project.accent }]} />
+          </View>
+          <Text style={styles.progressText}>{progress}%</Text>
+        </View>
+        <Text style={styles.cardMuted}>
+          {project.due} | {done}/{subtasks.length} subtareas
+        </Text>
+      </LinearGradient>
+    </Pressable>
   )
 }
 
@@ -1860,6 +2700,7 @@ function BottomTabs({
     { id: 'home' as const, label: 'Inicio', icon: Home },
     { id: 'calendar' as const, label: 'Calendario', icon: CalendarDays },
     { id: 'projects' as const, label: 'Proyectos', icon: LayoutGrid },
+    { id: 'assistant' as const, label: 'IA', icon: Bot },
     { id: 'settings' as const, label: 'Ajustes', icon: Settings },
   ]
 
@@ -1976,6 +2817,14 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       fontFamily,
       fontSize: fs(16),
       minWidth: 0,
+    },
+    searchIconButton: {
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      height: 38,
+      justifyContent: 'center',
+      width: 38,
     },
     stack: {
       gap: 34,
@@ -2643,6 +3492,43 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       flexDirection: 'row',
       gap: 8,
       padding: 12,
+    },
+    swatchRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    swatch: {
+      borderColor: theme.border,
+      borderRadius: 17,
+      borderWidth: 1,
+      height: 34,
+      width: 34,
+    },
+    swatchActive: {
+      borderColor: theme.text,
+      borderWidth: 3,
+    },
+    subtaskList: {
+      gap: 10,
+    },
+    subtaskRow: {
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
+      borderRadius: 18,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 10,
+      padding: 10,
+    },
+    subtaskText: {
+      color: theme.text,
+      flex: 1,
+      fontFamily,
+      fontSize: fs(14),
+      fontWeight: '800',
+      lineHeight: lh(19),
     },
     primaryAction: {
       alignItems: 'center',
