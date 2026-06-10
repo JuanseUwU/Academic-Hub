@@ -45,6 +45,7 @@ import {
   ActivityIndicator,
   Alert,
   Image as RNImage,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -707,9 +708,20 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState(formatIso(new Date()))
   const [isReady, setIsReady] = useState(false)
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false)
+  const scrollViewRef = useRef<ScrollView>(null)
   const theme = themes[themeName]
   const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale])
   const today = formatIso(new Date())
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true))
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false))
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -1036,6 +1048,7 @@ export default function App() {
       >
         <SafeAreaView style={styles.safeArea}>
           <ScrollView
+            ref={scrollViewRef}
             contentContainerStyle={styles.screen}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -1046,6 +1059,11 @@ export default function App() {
               setQuery={setQuery}
               styles={styles}
               theme={theme}
+              onSubmitEditing={() => {
+                if (activeTab === 'home') {
+                  scrollViewRef.current?.scrollTo({ y: 420, animated: true })
+                }
+              }}
               onMicPress={() => {
                 setQuery((current) => (normalizeText(current).includes('voz') ? '' : 'voz'))
                 setActiveTab('calendar')
@@ -1127,11 +1145,20 @@ export default function App() {
             )}
           </ScrollView>
 
-          <Pressable style={styles.fab} onPress={() => setModalVisible(true)}>
+          <Pressable
+            style={[styles.fab, isKeyboardVisible && { opacity: 0, transform: [{ translateY: 500 }] }]}
+            pointerEvents={isKeyboardVisible ? 'none' : 'auto'}
+            onPress={() => setModalVisible(true)}
+          >
             <Plus color="#041113" size={32} strokeWidth={2.5} />
           </Pressable>
 
-          <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} styles={styles} theme={theme} />
+          <View
+            pointerEvents={isKeyboardVisible ? 'none' : 'box-none'}
+            style={[StyleSheet.absoluteFill, isKeyboardVisible && { opacity: 0, transform: [{ translateY: 500 }] }]}
+          >
+            <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} styles={styles} theme={theme} />
+          </View>
         </SafeAreaView>
       </LinearGradient>
 
@@ -1223,6 +1250,7 @@ function Header({
 function SearchBar({
   onAssistantPress,
   onMicPress,
+  onSubmitEditing,
   query,
   setQuery,
   styles,
@@ -1230,6 +1258,7 @@ function SearchBar({
 }: {
   onAssistantPress: () => void
   onMicPress: () => void
+  onSubmitEditing?: () => void
   query: string
   setQuery: Dispatch<SetStateAction<string>>
   styles: ReturnType<typeof createStyles>
@@ -1244,6 +1273,7 @@ function SearchBar({
         style={styles.searchInput}
         value={query}
         onChangeText={setQuery}
+        onSubmitEditing={onSubmitEditing}
       />
       <Pressable style={styles.searchIconButton} onPress={onAssistantPress}>
         <Bot color={theme.muted} size={21} />
@@ -1629,6 +1659,7 @@ function AssistantView({
 
   const ask = async () => {
     if (!question.trim()) return
+    Keyboard.dismiss()
     await handleResult(runLocalAssistant(question, tasks, subjects))
   }
 
@@ -1678,21 +1709,6 @@ function AssistantView({
             <Send color="#041113" size={18} />
           </Pressable>
         </View>
-        <View style={styles.quickCommandGrid}>
-          {quickQuestions.map((item) => (
-            <Pressable
-              key={item}
-              style={styles.quickCommand}
-              onPress={async () => {
-                const result = runLocalAssistant(item, tasks, subjects)
-                setQuestion(item)
-                await handleResult(result)
-              }}
-            >
-              <Text style={styles.quickCommandText}>{item}</Text>
-            </Pressable>
-          ))}
-        </View>
         <Text style={styles.assistantAnswer}>{answer}</Text>
         <View style={styles.assistantVoiceRow}>
           <Pressable style={styles.voiceAction} onPress={() => speakText(answer)}>
@@ -1703,6 +1719,22 @@ function AssistantView({
             <Pause color={theme.accent} size={16} />
             <Text style={styles.mediaBadgeText}>Detener voz</Text>
           </Pressable>
+        </View>
+        <View style={styles.quickCommandGrid}>
+          {quickQuestions.map((item) => (
+            <Pressable
+              key={item}
+              style={styles.quickCommand}
+              onPress={async () => {
+                Keyboard.dismiss()
+                const result = runLocalAssistant(item, tasks, subjects)
+                setQuestion(item)
+                await handleResult(result)
+              }}
+            >
+              <Text style={styles.quickCommandText}>{item}</Text>
+            </Pressable>
+          ))}
         </View>
       </View>
     </View>
