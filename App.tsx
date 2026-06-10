@@ -22,6 +22,7 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Eye,
   FolderOpen,
   Home,
   Image as ImageIcon,
@@ -54,6 +55,7 @@ import {
   Text,
   TextInput,
   View,
+  useColorScheme,
 } from 'react-native'
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context'
 import * as SystemUI from 'expo-system-ui'
@@ -93,7 +95,7 @@ Notifications.setNotificationHandler({
 })
 
 type Tab = 'home' | 'calendar' | 'projects' | 'assistant' | 'settings'
-type ThemeName = 'dark' | 'light'
+type ThemeName = 'dark' | 'light' | 'dark_colorblind' | 'light_colorblind'
 type Priority = 'Alta' | 'Media' | 'Baja'
 type FontScale = 1 | 1.15 | 1.3
 
@@ -172,6 +174,8 @@ type Theme = {
   accent: string
   accentSoft: string
   tab: string
+  danger: string
+  success: string
 }
 
 const themes: Record<ThemeName, Theme> = {
@@ -188,6 +192,8 @@ const themes: Record<ThemeName, Theme> = {
     accent: '#39bfd1',
     accentSoft: 'rgba(57,191,209,0.16)',
     tab: 'rgba(5,6,8,0.94)',
+    danger: '#ff7a8a',
+    success: '#63d8ad',
   },
   light: {
     name: 'light',
@@ -202,6 +208,40 @@ const themes: Record<ThemeName, Theme> = {
     accent: '#1c93ad',
     accentSoft: 'rgba(28,147,173,0.14)',
     tab: 'rgba(247,248,251,0.96)',
+    danger: '#e63946',
+    success: '#2a9d8f',
+  },
+  dark_colorblind: {
+    name: 'dark_colorblind',
+    bg: '#050608',
+    card: 'rgba(26, 28, 31, 0.86)',
+    surface: 'rgba(255,255,255,0.055)',
+    surfaceStrong: 'rgba(255,255,255,0.09)',
+    text: '#f6f7fb',
+    muted: '#9da0ab',
+    soft: '#727783',
+    border: 'rgba(255,255,255,0.13)',
+    accent: '#39bfd1',
+    accentSoft: 'rgba(57,191,209,0.16)',
+    tab: 'rgba(5,6,8,0.94)',
+    danger: '#ffb347',
+    success: '#5aa9e6',
+  },
+  light_colorblind: {
+    name: 'light_colorblind',
+    bg: '#f7f8fb',
+    card: 'rgba(255,255,255,0.94)',
+    surface: 'rgba(255,255,255,0.72)',
+    surfaceStrong: 'rgba(255,255,255,0.96)',
+    text: '#11141a',
+    muted: '#666b78',
+    soft: '#858b98',
+    border: 'rgba(16,24,40,0.12)',
+    accent: '#1c93ad',
+    accentSoft: 'rgba(28,147,173,0.14)',
+    tab: 'rgba(247,248,251,0.96)',
+    danger: '#e07a5f',
+    success: '#3d5a80',
   },
 }
 
@@ -776,6 +816,8 @@ function Fab({ onPress, styles }: { onPress: () => void, styles: ReturnType<type
     <Pressable
       style={[styles.fab, { bottom: bottomInset + 105 }]}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Añadir nueva tarea"
     >
       <Plus color="#041113" size={32} strokeWidth={2.5} />
     </Pressable>
@@ -783,10 +825,11 @@ function Fab({ onPress, styles }: { onPress: () => void, styles: ReturnType<type
 }
 
 export default function App() {
+  const systemColorScheme = useColorScheme()
   const dbRef = useRef<SQLite.SQLiteDatabase | null>(null)
   const activePlayerRef = useRef<AudioPlayer | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('home')
-  const [themeName, setThemeName] = useState<ThemeName>('dark')
+  const [themeName, setThemeName] = useState<ThemeName>(systemColorScheme === 'light' ? 'light' : 'dark')
   const theme = themes[themeName]
 
   useEffect(() => {
@@ -1771,7 +1814,7 @@ function ProjectsView({
                 </View>
                 {isEditingSubjects ? (
                   <Pressable hitSlop={15} onPress={() => onDeleteSubject(subject.name)}>
-                    <Trash2 color="#ff7a8a" size={20} />
+                    <Trash2 color={theme.danger} size={20} />
                   </Pressable>
                 ) : (
                   <ChevronRight color={theme.muted} size={20} />
@@ -1816,7 +1859,8 @@ function SettingsView({
   imageCount: number
   audioCount: number
 }) {
-  const isDark = themeName === 'dark'
+  const isDark = themeName.startsWith('dark')
+  const isColorblind = themeName.endsWith('colorblind')
 
   return (
     <View style={styles.stack}>
@@ -1834,8 +1878,24 @@ function SettingsView({
           </View>
           <Switch
             value={isDark}
-            onValueChange={(enabled) => setThemeName(enabled ? 'dark' : 'light')}
+            onValueChange={(enabled) => setThemeName(`${enabled ? 'dark' : 'light'}${isColorblind ? '_colorblind' : ''}` as ThemeName)}
             thumbColor={isDark ? theme.accent : '#ffffff'}
+            trackColor={{ false: theme.border, true: theme.accentSoft }}
+          />
+        </View>
+
+        <View style={styles.settingsCard}>
+          <View style={styles.courseIcon}>
+            <Eye color={theme.accent} size={24} />
+          </View>
+          <View style={styles.settingsCopy}>
+            <Text style={styles.courseTitle}>Modo para daltónicos</Text>
+            <Text style={styles.cardMuted}>Paleta segura (protanopía / deuteranopía)</Text>
+          </View>
+          <Switch
+            value={isColorblind}
+            onValueChange={(enabled) => setThemeName(`${isDark ? 'dark' : 'light'}${enabled ? '_colorblind' : ''}` as ThemeName)}
+            thumbColor={isColorblind ? theme.accent : '#ffffff'}
             trackColor={{ false: theme.border, true: theme.accentSoft }}
           />
         </View>
@@ -1924,7 +1984,7 @@ function SettingsView({
       </View>
 
       <Pressable style={styles.dangerAction} onPress={resetData}>
-        <Trash2 color="#ff7a8a" size={18} />
+        <Trash2 color={theme.danger} size={18} />
         <Text style={styles.dangerActionText}>Reiniciar datos de prueba</Text>
       </Pressable>
     </View>
@@ -2437,7 +2497,7 @@ function ProjectDetailModal({
               <Text style={styles.primaryActionText}>Guardar proyecto</Text>
             </Pressable>
             <Pressable style={styles.dangerAction} onPress={() => onDelete(project)}>
-              <Trash2 color="#ff7a8a" size={18} />
+              <Trash2 color={theme.danger} size={18} />
               <Text style={styles.dangerActionText}>Eliminar proyecto</Text>
             </Pressable>
           </View>
@@ -2711,11 +2771,11 @@ function TaskDetailModal({
               </Pressable>
 
               <Pressable style={styles.attachmentButton} onPress={toggleRecord}>
-                <Mic color={recorderState.isRecording ? '#ff7a8a' : audioUri ? theme.accent : theme.text} size={18} />
+                <Mic color={recorderState.isRecording ? theme.danger : audioUri ? theme.accent : theme.text} size={18} />
                 <Text
                   style={[
                     styles.chipText,
-                    recorderState.isRecording && { color: '#ff7a8a' },
+                    recorderState.isRecording && { color: theme.danger },
                     !recorderState.isRecording && audioUri && { color: theme.accent },
                   ]}
                 >
@@ -2730,7 +2790,7 @@ function TaskDetailModal({
               )}
               {imageUri && (
                 <Pressable style={styles.attachmentButton} onPress={() => setImageUri(null)}>
-                  <X color="#ff7a8a" size={18} />
+                  <X color={theme.danger} size={18} />
                 </Pressable>
               )}
             </View>
@@ -2741,7 +2801,7 @@ function TaskDetailModal({
             </Pressable>
 
             <Pressable style={styles.dangerAction} onPress={() => onDelete(task)}>
-              <Trash2 color="#ff7a8a" size={18} />
+              <Trash2 color={theme.danger} size={18} />
               <Text style={styles.dangerActionText}>Eliminar actividad</Text>
             </Pressable>
           </View>
@@ -3141,7 +3201,11 @@ function ProjectCard({
   const progress = subtasks.length ? Math.round((done / subtasks.length) * 100) : project.progress
 
   return (
-    <Pressable onPress={onPress}>
+    <Pressable 
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Proyecto ${project.title}, ${progress}% completado`}
+    >
       <LinearGradient
         colors={theme.name === 'dark' ? ['rgba(255,255,255,0.16)', theme.card] : ['#ffffff', theme.card]}
         style={[styles.projectCard, large && styles.projectCardLarge]}
@@ -3202,9 +3266,17 @@ function TaskList({
           key={task.id}
           style={[styles.taskCard, task.done && styles.taskDone]}
           onPress={() => onOpenTask(task.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir tarea ${task.title}`}
         >
           <View style={styles.taskTopRow}>
-            <Pressable style={styles.taskCheck} onPress={() => toggleTask(task.id)}>
+            <Pressable 
+              style={styles.taskCheck} 
+              onPress={() => toggleTask(task.id)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: !!task.done }}
+              accessibilityLabel={`Marcar tarea ${task.title} como ${task.done ? 'pendiente' : 'completada'}`}
+            >
               {task.done && <Check color={theme.text} size={17} strokeWidth={3} />}
             </Pressable>
             <View style={styles.taskBody}>
@@ -3222,7 +3294,12 @@ function TaskList({
                 {task.reminder && <Bell color={theme.soft} size={14} />}
               </View>
             </View>
-            <Pressable style={styles.iconButton} onPress={() => deleteTask(task)}>
+            <Pressable 
+              style={styles.iconButton} 
+              onPress={() => deleteTask(task)}
+              accessibilityRole="button"
+              accessibilityLabel={`Eliminar tarea ${task.title}`}
+            >
               <Trash2 color={theme.soft} size={18} />
             </Pressable>
           </View>
@@ -3237,7 +3314,12 @@ function TaskList({
               </View>
             )}
             {task.audioUri && (
-              <Pressable style={styles.mediaBadge} onPress={() => playAudio(task.audioUri!)}>
+              <Pressable 
+                style={styles.mediaBadge} 
+                onPress={() => playAudio(task.audioUri!)}
+                accessibilityRole="button"
+                accessibilityLabel="Reproducir nota de voz"
+              >
                 <Play color={theme.accent} size={15} />
                 <Text style={styles.mediaBadgeText}>Reproducir voz</Text>
               </Pressable>
@@ -3331,7 +3413,14 @@ function BottomTabs({
       {items.map(({ id, label, icon: Icon }) => {
         const active = activeTab === id
         return (
-          <Pressable key={id} onPress={() => setActiveTab(id)} style={styles.tabButton}>
+          <Pressable 
+            key={id} 
+            onPress={() => setActiveTab(id)} 
+            style={styles.tabButton}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={`Pestaña ${label}`}
+          >
             <View style={[styles.tabIconWrap, active && styles.tabIconActive]}>
               <Icon color={active ? theme.accent : theme.muted} size={23} />
             </View>
@@ -3457,7 +3546,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderColor: theme.accent,
       borderRadius: 30,
       borderWidth: 1,
-      height: 58,
+      minHeight: 58,
       justifyContent: 'center',
       width: 58,
     },
@@ -3489,7 +3578,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.surface,
       borderRadius: 16,
-      height: 38,
+      minHeight: 38,
       justifyContent: 'center',
       width: 38,
     },
@@ -3631,7 +3720,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderColor: theme.accent,
       borderRadius: 19,
       borderWidth: 2,
-      height: 38,
+      minHeight: 38,
       justifyContent: 'center',
       width: 38,
     },
@@ -3681,7 +3770,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.surface,
       borderRadius: 16,
-      height: 34,
+      minHeight: 34,
       justifyContent: 'center',
       width: 34,
     },
@@ -3726,7 +3815,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       backgroundColor: 'rgba(255,122,138,0.14)',
     },
     priorityHighText: {
-      color: '#ff7a8a',
+      color: theme.danger,
     },
     priorityMid: {
       backgroundColor: 'rgba(242,191,101,0.14)',
@@ -3738,7 +3827,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       backgroundColor: 'rgba(99,216,173,0.14)',
     },
     priorityLowText: {
-      color: '#63d8ad',
+      color: theme.success,
     },
     emptyState: {
       alignItems: 'center',
@@ -3818,7 +3907,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.accentSoft,
       borderRadius: 16,
-      height: 44,
+      minHeight: 44,
       justifyContent: 'center',
       width: 44,
     },
@@ -3909,7 +3998,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.accent,
       borderRadius: 17,
-      height: 48,
+      minHeight: 48,
       justifyContent: 'center',
       width: 48,
     },
@@ -3981,7 +4070,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       minHeight: 52,
     },
     dangerActionText: {
-      color: '#ff7a8a',
+      color: theme.danger,
       fontFamily,
       fontSize: fs(14),
       fontWeight: '800',
@@ -4007,7 +4096,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
     tabIconWrap: {
       alignItems: 'center',
       borderRadius: 19,
-      height: 38,
+      minHeight: 38,
       justifyContent: 'center',
       width: 46,
     },
@@ -4024,7 +4113,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.accent,
       borderRadius: 33,
-      height: 66,
+      minHeight: 66,
       justifyContent: 'center',
       position: 'absolute',
       right: 19,
