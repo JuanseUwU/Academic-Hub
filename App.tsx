@@ -20,6 +20,7 @@ import {
   CalendarDays,
   Camera,
   Check,
+  CheckCircle,
   ChevronRight,
   Clock3,
   Eye,
@@ -30,8 +31,10 @@ import {
   Mic,
   Moon,
   Pause,
+  Pencil,
   Play,
   Plus,
+  PlusCircle,
   Save,
   Search,
   Send,
@@ -1785,9 +1788,9 @@ function ProjectsView({
 
       <View>
         <SectionTitle
-          action="Agregar"
+          actionIcon={PlusCircle}
           onAction={onAddSubject}
-          secondaryAction={isEditingSubjects ? 'Listo' : 'Editar'}
+          secondaryActionIcon={isEditingSubjects ? CheckCircle : Pencil}
           onSecondaryAction={handleToggleEditing}
           styles={styles}
           theme={theme}
@@ -3147,16 +3150,20 @@ function TaskModal({
 
 function SectionTitle({
   action,
+  actionIcon: ActionIcon,
   onAction,
   secondaryAction,
+  secondaryActionIcon: SecondaryActionIcon,
   onSecondaryAction,
   styles,
   theme,
   title,
 }: {
   action?: string
+  actionIcon?: any
   onAction?: () => void
   secondaryAction?: string
+  secondaryActionIcon?: any
   onSecondaryAction?: () => void
   styles: ReturnType<typeof createStyles>
   theme: Theme
@@ -3166,15 +3173,29 @@ function SectionTitle({
     <View style={styles.sectionTitle}>
       <Text style={styles.sectionHeading}>{title}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
-        {secondaryAction && (
-          <Pressable onPress={onSecondaryAction}>
-            <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '600' }}>{secondaryAction}</Text>
+        {(secondaryAction || SecondaryActionIcon) && (
+          <Pressable onPress={onSecondaryAction} hitSlop={15}>
+            {SecondaryActionIcon ? (
+              <View style={{ padding: 4 }}>
+                <SecondaryActionIcon color={theme.accent} size={25} />
+              </View>
+            ) : (
+              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '600' }}>{secondaryAction}</Text>
+            )}
           </Pressable>
         )}
-        {action && (
-          <Pressable style={styles.sectionAction} onPress={onAction}>
-            <Text style={[styles.sectionActionText, { color: theme.accent }]}>{action}</Text>
-            <ChevronRight color={theme.accent} size={18} />
+        {(action || ActionIcon) && (
+          <Pressable style={styles.sectionAction} onPress={onAction} hitSlop={15}>
+            {ActionIcon ? (
+              <View style={{ padding: 4 }}>
+                <ActionIcon color={theme.accent} size={27} />
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.sectionActionText, { color: theme.accent }]}>{action}</Text>
+                <ChevronRight color={theme.accent} size={18} />
+              </>
+            )}
           </Pressable>
         )}
       </View>
@@ -3607,6 +3628,8 @@ function createStyles(theme: Theme, fontScale: FontScale) {
     sectionTitle: {
       alignItems: 'center',
       flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
       justifyContent: 'space-between',
       marginBottom: 17,
     },
@@ -4203,9 +4226,11 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       fontFamily,
       fontSize: fs(12),
       fontWeight: '800',
+      textAlign: 'center',
     },
     attachmentRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 9,
     },
     attachmentButton: {
@@ -4214,11 +4239,14 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderColor: theme.border,
       borderRadius: 16,
       borderWidth: 1,
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: '30%',
       flexDirection: 'row',
       gap: 6,
       justifyContent: 'center',
       minHeight: 48,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
     },
     previewImage: {
       borderRadius: 18,
