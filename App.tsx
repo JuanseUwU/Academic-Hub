@@ -632,7 +632,7 @@ function runLocalAssistant(question: string, tasks: Task[], subjects: string[]):
     }
 
     return {
-      answer: `¡Listo! Creé la tarea "${taskDraft.title}" para ${taskDraft.date} a las ${taskDraft.time}.`,
+      answer: `Por favor confirma los detalles detectados para "${taskDraft.title}".`,
       taskDraft,
     }
   }
@@ -759,6 +759,7 @@ export default function App() {
   const [projectSubtasks, setProjectSubtasks] = useState<ProjectSubtask[]>([])
   const [query, setQuery] = useState('')
   const [modalVisible, setModalVisible] = useState(false)
+  const [assistantTaskDraft, setAssistantTaskDraft] = useState<TaskDraft | null>(null)
   const [subjectModalVisible, setSubjectModalVisible] = useState(false)
   const [projectModalVisible, setProjectModalVisible] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -1172,7 +1173,10 @@ export default function App() {
                 theme={theme}
                 voiceMode={voiceMode}
                 subjects={subjectNames}
-                onCreateTask={addTask}
+                onCreateTask={async (draft) => {
+                  setAssistantTaskDraft(draft)
+                  setModalVisible(true)
+                }}
               />
             )}
             {activeTab === 'settings' && (
@@ -1208,8 +1212,15 @@ export default function App() {
 
       <TaskModal
         defaultDate={today}
-        onClose={() => setModalVisible(false)}
-        onSubmit={addTask}
+        onClose={() => {
+          setModalVisible(false)
+          setAssistantTaskDraft(null)
+        }}
+        onSubmit={(draft) => {
+          addTask(draft)
+          setAssistantTaskDraft(null)
+        }}
+        initialDraft={assistantTaskDraft}
         courses={subjectNames}
         styles={styles}
         theme={theme}
@@ -1713,7 +1724,7 @@ function AssistantView({
     'Plan de estudio',
     'Resumen de carga',
     'Tareas urgentes',
-    'Agrega tarea leer capitulo para mañana a las 18:30 prioridad media',
+    'Agrega tarea leer capítulo para mañana a las 18:30 prioridad media',
   ]
 
   return (
@@ -2397,6 +2408,7 @@ function TaskDetailModal({
 function TaskModal({
   courses,
   defaultDate,
+  initialDraft,
   onClose,
   onSubmit,
   styles,
@@ -2405,6 +2417,7 @@ function TaskModal({
 }: {
   courses: string[]
   defaultDate: string
+  initialDraft?: TaskDraft | null
   onClose: () => void
   onSubmit: (task: TaskDraft) => void
   styles: ReturnType<typeof createStyles>
@@ -2456,14 +2469,32 @@ function TaskModal({
   const [isSavingMedia, setIsSavingMedia] = useState(false)
 
   useEffect(() => {
-    if (visible) setDate(defaultDate)
-  }, [defaultDate, visible])
-
-  useEffect(() => {
-    if (visible && courses.length && !courses.includes(course)) {
-      setCourse(courses[0])
+    if (visible) {
+      if (initialDraft) {
+        setTitle(initialDraft.title)
+        setDescription(initialDraft.description)
+        if (courses.includes(initialDraft.course)) {
+          setCourse(initialDraft.course)
+        } else if (courses.length) {
+          setCourse(courses[0])
+        }
+        setDate(initialDraft.date)
+        setTime(initialDraft.time)
+        setPriority(initialDraft.priority)
+      } else {
+        setTitle('')
+        setDescription('')
+        setDate(defaultDate)
+        setTime('08:00')
+        setPriority('Media')
+        if (courses.length && !courses.includes(course)) {
+          setCourse(courses[0])
+        }
+      }
+      setImageUri(null)
+      setAudioUri(null)
     }
-  }, [course, courses, visible])
+  }, [visible, initialDraft, defaultDate, courses])
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
