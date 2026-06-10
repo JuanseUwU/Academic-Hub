@@ -996,12 +996,59 @@ export default function App() {
     : []
   const subjectNames = subjects.map((subject) => subject.name)
 
+  const [editingSubjectName, setEditingSubjectName] = useState<string | null>(null)
+  const [isEditingSubjectsApp, setIsEditingSubjectsApp] = useState(false)
+
   const addSubject = async (name: string) => {
     const cleanName = name.trim()
     const db = dbRef.current
     if (!db || !cleanName) return
     await insertSubject(db, { id: makeId(), name: cleanName, createdAt: new Date().toISOString() })
     await refreshSubjects()
+  }
+
+  const updateSubjectName = async (oldName: string, newName: string) => {
+    const cleanName = newName.trim()
+    const db = dbRef.current
+    if (!db || !cleanName || oldName === cleanName) return
+    await db.runAsync('UPDATE subjects SET name = ? WHERE name = ?;', cleanName, oldName)
+    await db.runAsync('UPDATE tasks SET course = ? WHERE course = ?;', cleanName, oldName)
+    await db.runAsync('UPDATE projects SET course = ? WHERE course = ?;', cleanName, oldName)
+    await refreshSubjects()
+    await refreshTasks()
+    await refreshProjects()
+  }
+
+  const deleteSubjectAndCascade = (subjectName: string) => {
+    Alert.alert(
+      'Eliminar asignatura',
+      `¿Estás seguro de que deseas eliminar "${subjectName}"?\nSe borrarán permanentemente TODAS las tareas y proyectos asociados a esta asignatura.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar en cascada',
+          style: 'destructive',
+          onPress: async () => {
+            const db = dbRef.current
+            if (!db) return
+            const tasksToDelete = tasks.filter((t) => t.course === subjectName)
+            for (const t of tasksToDelete) {
+              await cancelTaskNotification(t.id)
+            }
+            const projectsToDelete = projects.filter((p) => p.course === subjectName)
+            for (const p of projectsToDelete) {
+              await db.runAsync('DELETE FROM project_subtasks WHERE projectId = ?;', p.id)
+            }
+            await db.runAsync('DELETE FROM tasks WHERE course = ?;', subjectName)
+            await db.runAsync('DELETE FROM projects WHERE course = ?;', subjectName)
+            await db.runAsync('DELETE FROM subjects WHERE name = ?;', subjectName)
+            await refreshSubjects()
+            await refreshTasks()
+            await refreshProjects()
+          },
+        },
+      ]
+    )
   }
 
   const addProject = async (input: ProjectDraft) => {
@@ -1236,8 +1283,14 @@ export default function App() {
                 subtasks={projectSubtasks}
                 onAddProject={() => setProjectModalVisible(true)}
                 onAddSubject={() => setSubjectModalVisible(true)}
+                onUpdateSubject={(name) => {
+                  setEditingSubjectName(name)
+                  setSubjectModalVisible(true)
+                }}
+                onDeleteSubject={deleteSubjectAndCascade}
                 onOpenCourse={setSelectedCourse}
                 onOpenProject={setSelectedProjectId}
+                onEditingChange={setIsEditingSubjectsApp}
               />
             )}
             {activeTab === 'assistant' && (
@@ -1274,7 +1327,9 @@ export default function App() {
             <ScrollSpacer />
           </ScrollView>
 
-          <Fab onPress={() => setModalVisible(true)} styles={styles} />
+          {(!isEditingSubjectsApp || activeTab !== 'projects') && (
+            <Fab onPress={() => setModalVisible(true)} styles={styles} />
+          )}
 
           <BottomTabs
             activeTab={activeTab}
@@ -1303,8 +1358,18 @@ export default function App() {
         visible={modalVisible}
       />
       <SubjectModal
-        onClose={() => setSubjectModalVisible(false)}
-        onSubmit={addSubject}
+        initialName={editingSubjectName}
+        onClose={() => {
+          setSubjectModalVisible(false)
+          setEditingSubjectName(null)
+        }}
+        onSubmit={async (newName) => {
+          if (editingSubjectName) {
+            await updateSubjectName(editingSubjectName, newName)
+          } else {
+            await addSubject(newName)
+          }
+        }}
         styles={styles}
         theme={theme}
         visible={subjectModalVisible}
@@ -1589,8 +1654,11 @@ function CalendarView({
 function ProjectsView({
   onAddProject,
   onAddSubject,
+  onUpdateSubject,
+  onDeleteSubject,
   onOpenCourse,
   onOpenProject,
+  onEditingChange,
   projects,
   styles,
   subjects,
@@ -1600,8 +1668,11 @@ function ProjectsView({
 }: {
   onAddProject: () => void
   onAddSubject: () => void
+  onUpdateSubject: (subjectName: string) => void
+  onDeleteSubject: (subjectName: string) => void
   onOpenCourse: (course: string) => void
   onOpenProject: (projectId: string) => void
+  onEditingChange?: (isEditing: boolean) => void
   projects: Project[]
   styles: ReturnType<typeof createStyles>
   subjects: Subject[]
@@ -1609,6 +1680,14 @@ function ProjectsView({
   tasks: Task[]
   theme: Theme
 }) {
+  const [isEditingSubjects, setIsEditingSubjects] = useState(false)
+
+  const handleToggleEditing = () => {
+    const nextState = !isEditingSubjects
+    setIsEditingSubjects(nextState)
+    onEditingChange?.(nextState)
+  }
+
   return (
     <View style={styles.stack}>
       <View>
@@ -1629,13 +1708,25 @@ function ProjectsView({
       </View>
 
       <View>
-        <SectionTitle action="Agregar" onAction={onAddSubject} styles={styles} theme={theme} title="Carga por asignatura" />
+        <SectionTitle
+          action="Agregar"
+          onAction={onAddSubject}
+          secondaryAction={isEditingSubjects ? 'Listo' : 'Editar'}
+          onSecondaryAction={handleToggleEditing}
+          styles={styles}
+          theme={theme}
+          title="Carga por asignatura"
+        />
         <View style={styles.courseList}>
           {subjects.map((subject) => {
             const courseTasks = tasks.filter((task) => task.course === subject.name)
             const amount = courseTasks.filter((task) => !task.done).length
             return (
-              <Pressable key={subject.id} style={styles.courseCard} onPress={() => onOpenCourse(subject.name)}>
+              <Pressable
+                key={subject.id}
+                style={styles.courseCard}
+                onPress={() => (isEditingSubjects ? onUpdateSubject(subject.name) : onOpenCourse(subject.name))}
+              >
                 <View style={styles.courseIcon}>
                   <BookOpen color={theme.accent} size={19} />
                 </View>
@@ -1645,7 +1736,13 @@ function ProjectsView({
                     {amount} pendientes | {courseTasks.length} tareas
                   </Text>
                 </View>
-                <ChevronRight color={theme.muted} size={20} />
+                {isEditingSubjects ? (
+                  <Pressable hitSlop={15} onPress={() => onDeleteSubject(subject.name)}>
+                    <Trash2 color="#ff7a8a" size={20} />
+                  </Pressable>
+                ) : (
+                  <ChevronRight color={theme.muted} size={20} />
+                )}
               </Pressable>
             )
           })}
@@ -1914,12 +2011,14 @@ function AssistantView({
 }
 
 function SubjectModal({
+  initialName,
   onClose,
   onSubmit,
   styles,
   theme,
   visible,
 }: {
+  initialName?: string | null
   onClose: () => void
   onSubmit: (name: string) => Promise<void>
   styles: ReturnType<typeof createStyles>
@@ -1927,6 +2026,12 @@ function SubjectModal({
   visible: boolean
 }) {
   const [name, setName] = useState('')
+
+  useEffect(() => {
+    if (visible) {
+      setName(initialName || '')
+    }
+  }, [visible, initialName])
 
   const submit = async () => {
     if (!name.trim()) {
@@ -1944,12 +2049,12 @@ function SubjectModal({
         <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.eyebrow}>Nueva asignatura</Text>
-                <Text style={styles.modalTitle}>Agregar materia</Text>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={styles.eyebrow}>{initialName ? 'Editar asignatura' : 'Nueva asignatura'}</Text>
+                <Text style={styles.modalTitle}>{initialName ? 'Editar materia' : 'Agregar materia'}</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10}>
-                <X color={theme.muted} size={22} />
+              <Pressable onPress={onClose} hitSlop={15} style={{ padding: 4 }}>
+                <X color={theme.muted} size={24} />
               </Pressable>
             </View>
             <TextInput
@@ -2950,12 +3055,16 @@ function TaskModal({
 function SectionTitle({
   action,
   onAction,
+  secondaryAction,
+  onSecondaryAction,
   styles,
   theme,
   title,
 }: {
   action?: string
   onAction?: () => void
+  secondaryAction?: string
+  onSecondaryAction?: () => void
   styles: ReturnType<typeof createStyles>
   theme: Theme
   title: string
@@ -2963,12 +3072,19 @@ function SectionTitle({
   return (
     <View style={styles.sectionTitle}>
       <Text style={styles.sectionHeading}>{title}</Text>
-      {action && (
-        <Pressable style={styles.sectionAction} onPress={onAction}>
-          <Text style={[styles.sectionActionText, { color: theme.accent }]}>{action}</Text>
-          <ChevronRight color={theme.accent} size={18} />
-        </Pressable>
-      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+        {secondaryAction && (
+          <Pressable onPress={onSecondaryAction}>
+            <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '600' }}>{secondaryAction}</Text>
+          </Pressable>
+        )}
+        {action && (
+          <Pressable style={styles.sectionAction} onPress={onAction}>
+            <Text style={[styles.sectionActionText, { color: theme.accent }]}>{action}</Text>
+            <ChevronRight color={theme.accent} size={18} />
+          </Pressable>
+        )}
+      </View>
     </View>
   )
 }
