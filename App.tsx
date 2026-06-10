@@ -2458,12 +2458,12 @@ function TaskDetailModal({
         <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 16 }}>
                 <Text style={styles.eyebrow}>Detalle de actividad</Text>
                 <Text style={styles.modalTitle}>{task.title}</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10} style={{ padding: 4, marginRight: -4, marginTop: -4 }}>
-                <X color={theme.muted} size={22} />
+              <Pressable onPress={onClose} hitSlop={15} style={{ padding: 4 }}>
+                <X color={theme.muted} size={24} />
               </Pressable>
             </View>
 
@@ -2798,12 +2798,12 @@ function TaskModal({
         <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 16 }}>
                 <Text style={styles.eyebrow}>Nueva actividad</Text>
                 <Text style={styles.modalTitle}>Nueva tarea</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10} style={{ padding: 4, marginRight: -4, marginTop: -4 }}>
-                <X color={theme.muted} size={22} />
+              <Pressable onPress={onClose} hitSlop={15} style={{ padding: 4 }}>
+                <X color={theme.muted} size={24} />
               </Pressable>
             </View>
 
