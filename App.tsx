@@ -1318,6 +1318,7 @@ export default function App() {
         visible={projectModalVisible}
       />
       <TaskDetailModal
+        courses={subjectNames}
         task={selectedTask}
         onClose={() => setSelectedTaskId(null)}
         onDelete={deleteTask}
@@ -2309,6 +2310,7 @@ function ProjectDetailModal({
 }
 
 function TaskDetailModal({
+  courses,
   task,
   onClose,
   onDelete,
@@ -2318,6 +2320,7 @@ function TaskDetailModal({
   styles,
   theme,
 }: {
+  courses: string[]
   task: Task | null
   onClose: () => void
   onDelete: (task: Task) => void
@@ -2333,8 +2336,47 @@ function TaskDetailModal({
   const [time, setTime] = useState('')
   const [priority, setPriority] = useState<Priority>('Media')
 
+  const [course, setCourse] = useState('')
+  const [imageUri, setImageUri] = useState<string | null>(null)
+  const [audioUri, setAudioUri] = useState<string | null>(null)
+  const [reminder, setReminder] = useState<boolean>(true)
+
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showTimePicker, setShowTimePicker] = useState(false)
+
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY)
+  const recorderState = useAudioRecorderState(recorder)
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Da acceso a tu galería para adjuntar imágenes.')
+      return
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.5,
+    })
+    if (!result.canceled) setImageUri(result.assets[0].uri)
+  }
+
+  const toggleRecord = async () => {
+    if (recorderState.isRecording) {
+      await recorder.stopAndUnloadAsync()
+      setAudioUri(recorder.uri)
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true })
+      return
+    }
+    const permission = await requestRecordingPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Activa el micrófono para grabar notas de voz.')
+      return
+    }
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true })
+    await recorder.prepareToRecordAsync()
+    recorder.record()
+  }
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false)
@@ -2372,6 +2414,10 @@ function TaskDetailModal({
     setDate(task.date)
     setTime(task.time)
     setPriority(task.priority)
+    setCourse(task.course)
+    setImageUri(task.imageUri || null)
+    setAudioUri(task.audioUri || null)
+    setReminder(task.reminder ?? 1)
     if (voiceMode) speakText(taskToSpeech(task))
   }, [task])
 
@@ -2398,6 +2444,10 @@ function TaskDetailModal({
       date: finalDate,
       time: finalTime,
       priority,
+      course,
+      imageUri,
+      audioUri,
+      reminder,
     })
     onClose()
   }
@@ -2412,7 +2462,7 @@ function TaskDetailModal({
                 <Text style={styles.eyebrow}>Detalle de actividad</Text>
                 <Text style={styles.modalTitle}>{task.title}</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10}>
+              <Pressable onPress={onClose} hitSlop={10} style={{ padding: 4, marginRight: -4, marginTop: -4 }}>
                 <X color={theme.muted} size={22} />
               </Pressable>
             </View>
@@ -2478,30 +2528,72 @@ function TaskDetailModal({
               ))}
             </View>
 
-            <View style={styles.detailInfoBox}>
-              <Text style={styles.cardMuted}>Materia</Text>
-              <Text style={styles.courseTitle}>{task.course}</Text>
-              <Text style={styles.cardMuted}>
-                Estado: {task.done ? 'Completada' : 'Pendiente'} | Recordatorio: {task.reminder ? 'Sí' : 'No'}
-              </Text>
+            <Text style={styles.formLabel}>Asignatura</Text>
+            <View style={styles.chipRow}>
+              {courses.map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setCourse(item)}
+                  style={[styles.chip, course === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, course === item && { color: theme.accent }]}>{item}</Text>
+                </Pressable>
+              ))}
             </View>
 
+            <View style={[styles.formRow, { alignItems: 'center', marginTop: 10, justifyContent: 'space-between', marginBottom: 15 }]}>
+              <Text style={styles.formLabel}>Notificar con alarma local</Text>
+            </View>
+            <View style={[styles.chipRow, { marginBottom: 15 }]}>
+              {[0, 1, -1, 15, 30, 60, 120].map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setReminder(item)}
+                  style={[styles.chip, reminder === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, reminder === item && { color: theme.accent }]}>
+                    {item === 0 ? 'Sin aviso' : item === 1 ? 'Por defecto' : item === -1 ? 'Exacta' : `${item}m`}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.formLabel}>Adjuntos</Text>
             <View style={styles.attachmentRow}>
               <Pressable style={styles.attachmentButton} onPress={() => speakText(taskToSpeech(task))}>
                 <Play color={theme.accent} size={18} />
                 <Text style={styles.chipText}>Leer actividad</Text>
               </Pressable>
-              {task.audioUri && (
-                <Pressable style={styles.attachmentButton} onPress={() => onPlayAudio(task.audioUri!)}>
+
+              <Pressable style={styles.attachmentButton} onPress={pickImage}>
+                <ImageIcon color={imageUri ? theme.accent : theme.text} size={18} />
+                <Text style={[styles.chipText, imageUri && { color: theme.accent }]}>
+                  {imageUri ? 'Cambiar imagen' : 'Imagen'}
+                </Text>
+              </Pressable>
+
+              <Pressable style={styles.attachmentButton} onPress={toggleRecord}>
+                <Mic color={recorderState.isRecording ? '#ff7a8a' : audioUri ? theme.accent : theme.text} size={18} />
+                <Text
+                  style={[
+                    styles.chipText,
+                    recorderState.isRecording && { color: '#ff7a8a' },
+                    !recorderState.isRecording && audioUri && { color: theme.accent },
+                  ]}
+                >
+                  {recorderState.isRecording ? 'Grabando...' : audioUri ? 'Cambiar nota' : 'Nota de voz'}
+                </Text>
+              </Pressable>
+
+              {audioUri && (
+                <Pressable style={styles.attachmentButton} onPress={() => onPlayAudio(audioUri)}>
                   <Play color={theme.accent} size={18} />
-                  <Text style={styles.chipText}>Reproducir audio</Text>
                 </Pressable>
               )}
-              {task.imageUri && (
-                <View style={styles.attachmentButton}>
-                  <ImageIcon color={theme.accent} size={18} />
-                  <Text style={styles.chipText}>Imagen guardada</Text>
-                </View>
+              {imageUri && (
+                <Pressable style={styles.attachmentButton} onPress={() => setImageUri(null)}>
+                  <X color="#ff7a8a" size={18} />
+                </Pressable>
               )}
             </View>
 
@@ -2582,6 +2674,7 @@ function TaskModal({
 
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [audioUri, setAudioUri] = useState<string | null>(null)
+  const [reminder, setReminder] = useState<number>(1)
   const [isSavingMedia, setIsSavingMedia] = useState(false)
 
   useEffect(() => {
@@ -2597,12 +2690,14 @@ function TaskModal({
         setDate(initialDraft.date)
         setTime(initialDraft.time)
         setPriority(initialDraft.priority)
+        setReminder(initialDraft.reminder ?? 1)
       } else {
         setTitle('')
         setDescription('')
         setDate(defaultDate)
         setTime('08:00')
         setPriority('Media')
+        setReminder(1)
         if (courses.length && !courses.includes(course)) {
           setCourse(courses[0])
         }
@@ -2683,7 +2778,7 @@ function TaskModal({
       date: finalDate,
       time: finalTime,
       priority,
-      reminder: true,
+      reminder,
       imageUri,
       audioUri,
     })
@@ -2691,6 +2786,7 @@ function TaskModal({
     setTitle('')
     setDescription('')
     setPriority('Media')
+    setReminder(1)
     setImageUri(null)
     setAudioUri(null)
     setTime('08:00')
@@ -2706,7 +2802,7 @@ function TaskModal({
                 <Text style={styles.eyebrow}>Nueva actividad</Text>
                 <Text style={styles.modalTitle}>Nueva tarea</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10}>
+              <Pressable onPress={onClose} hitSlop={10} style={{ padding: 4, marginRight: -4, marginTop: -4 }}>
                 <X color={theme.muted} size={22} />
               </Pressable>
             </View>
@@ -2796,6 +2892,21 @@ function TaskModal({
                   style={[styles.chip, priority === item && styles.chipActive]}
                 >
                   <Text style={[styles.chipText, priority === item && { color: theme.accent }]}>{item}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.formLabel}>Notificar con alarma local</Text>
+            <View style={[styles.chipRow, { marginBottom: 15 }]}>
+              {[0, 1, -1, 15, 30, 60, 120].map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setReminder(item)}
+                  style={[styles.chip, reminder === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, reminder === item && { color: theme.accent }]}>
+                    {item === 0 ? 'Sin aviso' : item === 1 ? 'Por defecto' : item === -1 ? 'Exacta' : `${item}m`}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -3089,7 +3200,7 @@ const cancelTaskNotification = async (taskId: string) => {
 
 const syncTaskNotification = async (task: Task, offsetMinutes: number) => {
   await cancelTaskNotification(task.id)
-  if (task.done || !task.reminder) return
+  if (task.done || task.reminder === 0) return
 
   const parts = task.date.split('-')
   const timeParts = task.time.split(':')
@@ -3102,7 +3213,13 @@ const syncTaskNotification = async (task: Task, offsetMinutes: number) => {
     Number(timeParts[0]),
     Number(timeParts[1]),
   )
-  targetDate.setMinutes(targetDate.getMinutes() - offsetMinutes)
+
+  let offset = 0
+  if (task.reminder === 1) offset = offsetMinutes
+  else if (task.reminder === -1) offset = 0
+  else if (task.reminder > 1) offset = task.reminder
+
+  targetDate.setMinutes(targetDate.getMinutes() - offset)
 
   if (targetDate.getTime() > Date.now()) {
     await Notifications.scheduleNotificationAsync({
