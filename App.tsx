@@ -171,11 +171,11 @@ const themes: Record<ThemeName, Theme> = {
 }
 
 const starterSubjectNames = [
-  'Gestion de Proyectos',
+  'Gestión de Proyectos',
   'Base de Datos',
-  'Interaccion Humano-Computador',
-  'Investigacion',
-  'Matematicas',
+  'Interacción Humano-Computador',
+  'Investigación',
+  'Matemáticas',
 ]
 
 const weekLabels = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
@@ -193,7 +193,7 @@ const starterProjects = (): Project[] => [
   {
     id: 'projectx',
     title: 'ProjectX',
-    course: 'Interaccion Humano-Computador',
+    course: 'Interacción Humano-Computador',
     due: 'Entrega parcial',
     description: 'Prototipo, prueba de usabilidad y entrega documentada para IHC.',
     progress: 72,
@@ -202,10 +202,10 @@ const starterProjects = (): Project[] => [
   },
   {
     id: 'capm',
-    title: 'Certificacion CAPM',
-    course: 'Preparacion profesional',
+    title: 'Certificación CAPM',
+    course: 'Preparación profesional',
     due: 'Simulacro viernes',
-    description: 'Plan de practica con simulacros, lectura PMBOK y revision de errores.',
+    description: 'Plan de práctica con simulacros, lectura PMBOK y revisión de errores.',
     progress: 46,
     accent: '#8bb7ff',
     createdAt: new Date().toISOString(),
@@ -216,7 +216,7 @@ const starterProjectSubtasks = (): ProjectSubtask[] => [
   {
     id: makeId(),
     projectId: 'projectx',
-    title: 'Cerrar alcance y criterios de evaluacion',
+    title: 'Cerrar alcance y criterios de evaluación',
     done: true,
     createdAt: new Date().toISOString(),
   },
@@ -267,9 +267,9 @@ const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 const starterTasks = (): Task[] => [
   {
     id: makeId(),
-    title: 'Aprobar cronograma de Activate',
+    title: 'Aprobar cronograma de Actívate',
     description: 'Revisar fechas, responsables y entregables antes de enviarlo.',
-    course: 'Gestion de Proyectos',
+    course: 'Gestión de Proyectos',
     date: offsetDate(0),
     time: '09:30',
     priority: 'Alta',
@@ -295,9 +295,9 @@ const starterTasks = (): Task[] => [
   },
   {
     id: makeId(),
-    title: 'Grabar resumen de metodologia',
+    title: 'Grabar resumen de metodología',
     description: 'Explicar hallazgos principales de la prueba de usabilidad.',
-    course: 'Investigacion',
+    course: 'Investigación',
     date: offsetDate(1),
     time: '18:20',
     priority: 'Baja',
@@ -594,7 +594,7 @@ function runLocalAssistant(question: string, tasks: Task[], subjects: string[]):
       question.trim(),
     )
 
-  if (normalized.includes('que puedes hacer') || normalized.includes('ayuda')) {
+  if (normalized.includes('qué puedes hacer') || normalized.includes('que puedes hacer') || normalized.includes('ayuda')) {
     return {
       answer:
         'Puedo consultar tus tareas, crear actividades, resumir carga, sugerir un plan, buscar tareas con audio o imagen y leer respuestas en voz alta. Ejemplo: "agrega tarea estudiar SQL para mañana a las 18:30 prioridad alta".',
@@ -616,7 +616,7 @@ function runLocalAssistant(question: string, tasks: Task[], subjects: string[]):
     }
 
     return {
-      answer: `Listo, cree la tarea "${taskDraft.title}" para ${taskDraft.date} a las ${taskDraft.time}.`,
+      answer: `¡Listo! Creé la tarea "${taskDraft.title}" para ${taskDraft.date} a las ${taskDraft.time}.`,
       taskDraft,
     }
   }
@@ -655,21 +655,21 @@ function runLocalAssistant(question: string, tasks: Task[], subjects: string[]):
     matches = matches.filter((task) => task.audioUri)
   }
 
-  if (normalized.includes('cuantas') || normalized.includes('cuantos')) {
+  if (normalized.includes('cuántas') || normalized.includes('cuantas') || normalized.includes('cuántos') || normalized.includes('cuantos')) {
     return { answer: `Tienes ${matches.length} actividad${matches.length === 1 ? '' : 'es'} que coinciden con eso.` }
   }
 
   if (!matches.length) {
     return {
       answer: date
-        ? `No encontre tareas pendientes para ${date}.`
-        : 'No encontre tareas con esos filtros. Puedes preguntar: "que deber tengo para el martes", "plan de estudio" o "agrega tarea estudiar SQL para mañana a las 18:30".',
+        ? `No encontré tareas pendientes para ${date}.`
+        : 'No encontré tareas con esos filtros. Puedes preguntar: "¿qué deber tengo para el martes?", "plan de estudio" o "agrega tarea estudiar SQL para mañana a las 18:30".',
     }
   }
 
   const header = date
     ? `Para ${date} tienes ${matches.length} actividad${matches.length === 1 ? '' : 'es'}:`
-    : `Encontre ${matches.length} actividad${matches.length === 1 ? '' : 'es'}:`
+    : `Encontré ${matches.length} actividad${matches.length === 1 ? '' : 'es'}:`
 
   return { answer: `${header}\n${matches.slice(0, 5).map(formatTaskLine).join('\n')}` }
 }
@@ -684,7 +684,7 @@ function speakText(text: string) {
 }
 
 function taskToSpeech(task: Task) {
-  return `${task.title}. Materia: ${task.course}. Fecha: ${task.date}, hora ${task.time}. Prioridad ${task.priority}. ${task.description || 'Sin descripcion.'}`
+  return `${task.title}. Materia: ${task.course}. Fecha: ${task.date}, hora ${task.time}. Prioridad ${task.priority}. ${task.description || 'Sin descripción.'}`
 }
 
 export default function App() {
@@ -896,7 +896,7 @@ export default function App() {
   }
 
   const deleteProject = async (project: Project) => {
-    Alert.alert('Eliminar proyecto', `Se eliminara "${project.title}" y sus subtareas.`, [
+    Alert.alert('Eliminar proyecto', `Se eliminará "${project.title}" y sus subtareas.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
@@ -957,7 +957,7 @@ export default function App() {
   }
 
   const deleteTask = async (task: Task) => {
-    Alert.alert('Eliminar tarea', `Se eliminara "${task.title}".`, [
+    Alert.alert('Eliminar tarea', `Se eliminará "${task.title}".`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
@@ -986,7 +986,7 @@ export default function App() {
   }
 
   const resetData = async () => {
-    Alert.alert('Reiniciar datos', 'Esto borrara tareas guardadas y cargara datos de ejemplo.', [
+    Alert.alert('Reiniciar datos', 'Esto borrará tareas guardadas y cargará datos de ejemplo.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Reiniciar',
@@ -1209,7 +1209,7 @@ function Header({
   return (
     <View style={styles.header}>
       <View style={styles.headerCopy}>
-        <Text style={styles.eyebrow}>Buenos dias</Text>
+        <Text style={styles.eyebrow}>Buenos días</Text>
         <Text style={styles.heroTitle}>Estudiante</Text>
         <Text style={styles.subcopy}>{pendingCount} pendientes por organizar hoy</Text>
       </View>
@@ -1298,7 +1298,7 @@ function HomeView({
       </View>
 
       <View style={styles.metricsGrid}>
-        <MetricCard label="Imagenes" value={imageCount} styles={styles} />
+        <MetricCard label="Imágenes" value={imageCount} styles={styles} />
         <MetricCard label="Notas de voz" value={audioCount} styles={styles} />
       </View>
 
@@ -1522,7 +1522,7 @@ function SettingsView({
           <View style={styles.settingsCopy}>
             <Text style={styles.courseTitle}>Modo de apariencia</Text>
             <Text style={styles.cardMuted}>
-              {isDark ? 'Oscuro elegante con cian mate' : 'Claro limpio para estudiar de dia'}
+              {isDark ? 'Oscuro elegante con cian mate' : 'Claro limpio para estudiar de día'}
             </Text>
           </View>
           <Switch
@@ -1541,7 +1541,7 @@ function SettingsView({
             <Text style={styles.accessibilityIconText}>Aa</Text>
           </View>
           <View style={styles.settingsCopy}>
-            <Text style={styles.courseTitle}>Tamano de letra</Text>
+            <Text style={styles.courseTitle}>Tamaño de letra</Text>
             <Text style={styles.cardMuted}>Aumenta texto y espaciado para leer con menos esfuerzo.</Text>
           </View>
         </View>
@@ -1586,7 +1586,7 @@ function SettingsView({
         <View style={styles.settingsCopy}>
           <Text style={styles.courseTitle}>Base local funcional</Text>
           <Text style={styles.cardMuted}>
-            Guarda tareas, estado, imagenes, notas de voz y tema en SQLite del dispositivo.
+            Guarda tareas, estado, imágenes, notas de voz y tema en SQLite del dispositivo.
           </Text>
         </View>
       </View>
@@ -1614,7 +1614,7 @@ function AssistantView({
   theme: Theme
   voiceMode: boolean
 }) {
-  const [question, setQuestion] = useState('Que deber tengo para el martes?')
+  const [question, setQuestion] = useState('¿Qué deber tengo para el martes?')
   const [answer, setAnswer] = useState(
     'Soy un asistente local: consulto tareas, creo actividades, resumo carga y ayudo a priorizar sin internet.',
   )
@@ -1633,8 +1633,8 @@ function AssistantView({
   }
 
   const quickQuestions = [
-    'Que deber tengo hoy?',
-    'Que deber tengo para el martes?',
+    '¿Qué deber tengo hoy?',
+    '¿Qué deber tengo para el martes?',
     'Plan de estudio',
     'Resumen de carga',
     'Tareas urgentes',
@@ -1650,7 +1650,7 @@ function AssistantView({
           <View style={styles.settingsCopy}>
             <Text style={styles.courseTitle}>Modelo local mejorado</Text>
             <Text style={styles.cardMuted}>
-              Entiende dias, prioridades, asignaturas, multimedia, planes de estudio y comandos para crear tareas.
+              Entiende días, prioridades, asignaturas, multimedia, planes de estudio y comandos para crear tareas.
             </Text>
           </View>
         </View>
@@ -1662,13 +1662,13 @@ function AssistantView({
             <Bot color={theme.accent} size={21} />
           </View>
           <View style={styles.settingsCopy}>
-            <Text style={styles.courseTitle}>Asistente academico</Text>
-            <Text style={styles.cardMuted}>Pregunta por dias, materias, audios, imagenes o pendientes.</Text>
+            <Text style={styles.courseTitle}>Asistente académico</Text>
+            <Text style={styles.cardMuted}>Pregunta por días, materias, audios, imágenes o pendientes.</Text>
           </View>
         </View>
         <View style={styles.assistantInputRow}>
           <TextInput
-            placeholder="Ej. que deber tengo para el martes"
+            placeholder="Ej. ¿qué deber tengo para el martes?"
             placeholderTextColor={theme.muted}
             style={styles.assistantInput}
             value={question}
@@ -1794,7 +1794,7 @@ function ProjectModal({
 
   const submit = async () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'Escribe un nombre para el proyecto.')
+      Alert.alert('Falta el título', 'Escribe un nombre para el proyecto.')
       return
     }
     await onSubmit({
@@ -1827,7 +1827,7 @@ function ProjectModal({
             </View>
 
             <TextInput
-              placeholder="Ej. App academica final"
+              placeholder="Ej. App académica final"
               placeholderTextColor={theme.muted}
               style={styles.field}
               value={title}
@@ -1995,7 +1995,7 @@ function ProjectDetailModal({
 
   const save = () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'El proyecto necesita un titulo.')
+      Alert.alert('Falta el título', 'El proyecto necesita un título.')
       return
     }
     onSave({
@@ -2029,9 +2029,9 @@ function ProjectDetailModal({
               </Pressable>
             </View>
 
-            <Text style={styles.formLabel}>Titulo</Text>
+            <Text style={styles.formLabel}>Título</Text>
             <TextInput style={styles.field} value={title} onChangeText={setTitle} />
-            <Text style={styles.formLabel}>Descripcion</Text>
+            <Text style={styles.formLabel}>Descripción</Text>
             <TextInput multiline style={[styles.field, styles.textArea]} value={description} onChangeText={setDescription} />
 
             <Text style={styles.formLabel}>Asignatura</Text>
@@ -2144,7 +2144,7 @@ function TaskDetailModal({
 
   const save = () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'La actividad necesita un titulo.')
+      Alert.alert('Falta el título', 'La actividad necesita un título.')
       return
     }
 
@@ -2176,10 +2176,10 @@ function TaskDetailModal({
 
             {task.imageUri && <RNImage source={{ uri: task.imageUri }} style={styles.detailImage} />}
 
-            <Text style={styles.formLabel}>Titulo</Text>
+            <Text style={styles.formLabel}>Título</Text>
             <TextInput style={styles.field} value={title} onChangeText={setTitle} />
 
-            <Text style={styles.formLabel}>Descripcion</Text>
+            <Text style={styles.formLabel}>Descripción</Text>
             <TextInput
               multiline
               style={[styles.field, styles.textArea]}
@@ -2215,7 +2215,7 @@ function TaskDetailModal({
               <Text style={styles.cardMuted}>Materia</Text>
               <Text style={styles.courseTitle}>{task.course}</Text>
               <Text style={styles.cardMuted}>
-                Estado: {task.done ? 'Completada' : 'Pendiente'} | Recordatorio: {task.reminder ? 'Si' : 'No'}
+                Estado: {task.done ? 'Completada' : 'Pendiente'} | Recordatorio: {task.reminder ? 'Sí' : 'No'}
               </Text>
             </View>
 
@@ -2296,7 +2296,7 @@ function TaskModal({
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Activa el permiso de galeria para adjuntar imagenes.')
+      Alert.alert('Permiso requerido', 'Activa el permiso de galería para adjuntar imágenes.')
       return
     }
 
@@ -2334,7 +2334,7 @@ function TaskModal({
 
     const permission = await requestRecordingPermissionsAsync()
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Activa el microfono para grabar notas de voz.')
+      Alert.alert('Permiso requerido', 'Activa el micrófono para grabar notas de voz.')
       return
     }
 
@@ -2345,7 +2345,7 @@ function TaskModal({
 
   const submit = () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'Escribe un titulo corto para guardar la tarea.')
+      Alert.alert('Falta el título', 'Escribe un título corto para guardar la tarea.')
       return
     }
 
@@ -2393,7 +2393,7 @@ function TaskModal({
             />
             <TextInput
               multiline
-              placeholder="Descripcion, enlaces o notas importantes"
+              placeholder="Descripción, enlaces o notas importantes"
               placeholderTextColor={theme.muted}
               style={[styles.field, styles.textArea]}
               value={description}
