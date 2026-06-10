@@ -914,6 +914,17 @@ export default function App() {
     )
   }, [query, tasks])
 
+  const filteredProjects = useMemo(() => {
+    const normalized = normalizeText(query.trim())
+    return projects.filter((project) =>
+      normalized
+        ? normalizeText(`${project.title} ${project.course} ${project.description} ${project.due}`).includes(
+            normalized,
+          )
+        : true,
+    )
+  }, [query, projects])
+
   const todayTasks = filteredTasks.filter((task) => task.date === today)
   const pendingCount = tasks.filter((task) => !task.done).length
   const completedCount = tasks.filter((task) => task.done).length
@@ -1157,7 +1168,7 @@ export default function App() {
                 styles={styles}
                 tasks={tasks}
                 theme={theme}
-                projects={projects}
+                projects={filteredProjects}
                 subjects={subjects}
                 subtasks={projectSubtasks}
                 onAddProject={() => setProjectModalVisible(true)}
