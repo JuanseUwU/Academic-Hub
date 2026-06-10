@@ -60,6 +60,29 @@ import * as SystemUI from 'expo-system-ui'
 import { SystemBars } from 'react-native-edge-to-edge'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Notifications from 'expo-notifications'
+import { Calendar, LocaleConfig } from 'react-native-calendars'
+
+LocaleConfig.locales['es'] = {
+  monthNames: [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ],
+  monthNamesShort: ['Ene.', 'Feb.', 'Mar', 'Abr', 'May', 'Jun', 'Jul.', 'Ago', 'Sept.', 'Oct.', 'Nov.', 'Dic.'],
+  dayNames: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  dayNamesShort: ['Dom.', 'Lun.', 'Mar.', 'Mié.', 'Jue.', 'Vie.', 'Sáb.'],
+  today: 'Hoy',
+}
+LocaleConfig.defaultLocale = 'es'
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -1500,32 +1523,43 @@ function CalendarView({
   playAudio: (uri: string) => void
   onOpenTask: (taskId: string) => void
 }) {
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date()
-    date.setDate(date.getDate() + index)
-    return { iso: formatIso(date), label: weekLabels[date.getDay()], day: date.getDate() }
-  })
   const selectedTasks = tasks.filter((task) => task.date === selectedDate)
+  const markedDates: any = {}
+
+  tasks.forEach((task) => {
+    if (!markedDates[task.date]) {
+      markedDates[task.date] = { marked: true, dotColor: theme.accent }
+    }
+  })
+
+  if (markedDates[selectedDate]) {
+    markedDates[selectedDate] = { ...markedDates[selectedDate], selected: true, selectedColor: theme.accent }
+  } else {
+    markedDates[selectedDate] = { selected: true, selectedColor: theme.accent }
+  }
 
   return (
     <View style={styles.stack}>
       <View>
         <SectionTitle styles={styles} theme={theme} title="Calendario" />
-        <View style={styles.weekStrip}>
-          {days.map((day) => {
-            const active = day.iso === selectedDate
-            return (
-              <Pressable
-                key={day.iso}
-                onPress={() => setSelectedDate(day.iso)}
-                style={[styles.dayPill, active && styles.dayPillActive]}
-              >
-                <Text style={[styles.dayLabel, active && { color: theme.accent }]}>{day.label}</Text>
-                <Text style={styles.dayNumber}>{day.day}</Text>
-              </Pressable>
-            )
-          })}
-        </View>
+        <Calendar
+          current={selectedDate}
+          onDayPress={(day: any) => setSelectedDate(day.dateString)}
+          markedDates={markedDates}
+          theme={{
+            calendarBackground: 'transparent',
+            textSectionTitleColor: theme.muted,
+            dayTextColor: theme.text,
+            todayTextColor: theme.accent,
+            selectedDayTextColor: '#ffffff',
+            monthTextColor: theme.text,
+            selectedDayBackgroundColor: theme.accent,
+            arrowColor: theme.accent,
+            textDisabledColor: theme.border,
+            dotColor: theme.accent,
+            selectedDotColor: '#ffffff',
+          }}
+        />
       </View>
 
       <View style={styles.panel}>
