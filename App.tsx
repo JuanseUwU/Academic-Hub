@@ -382,6 +382,18 @@ async function copyToAppStorage(uri: string, fallbackExtension: string) {
   return target
 }
 
+async function safeDeleteFile(uri: string | null) {
+  if (!uri || !FileSystem.documentDirectory) return
+  try {
+    const info = await FileSystem.getInfoAsync(uri)
+    if (info.exists) {
+      await FileSystem.deleteAsync(uri, { idempotent: true })
+    }
+  } catch (e) {
+    console.log('Error deleting file', e)
+  }
+}
+
 async function setupDatabase(db: SQLite.SQLiteDatabase) {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -1034,6 +1046,8 @@ export default function App() {
             const tasksToDelete = tasks.filter((t) => t.course === subjectName)
             for (const t of tasksToDelete) {
               await cancelTaskNotification(t.id)
+              await safeDeleteFile(t.imageUri)
+              await safeDeleteFile(t.audioUri)
             }
             const projectsToDelete = projects.filter((p) => p.course === subjectName)
             for (const p of projectsToDelete) {
@@ -1144,6 +1158,8 @@ export default function App() {
         onPress: async () => {
           await dbRef.current?.runAsync('DELETE FROM tasks WHERE id = ?;', task.id)
           await cancelTaskNotification(task.id)
+          await safeDeleteFile(task.imageUri)
+          await safeDeleteFile(task.audioUri)
           if (selectedTaskId === task.id) setSelectedTaskId(null)
           await refreshTasks()
         },
@@ -1154,6 +1170,15 @@ export default function App() {
   const updateTask = async (task: Task) => {
     const db = dbRef.current
     if (!db) return
+    const oldTask = tasks.find((t) => t.id === task.id)
+    if (oldTask) {
+      if (oldTask.imageUri && oldTask.imageUri !== task.imageUri) {
+        await safeDeleteFile(oldTask.imageUri)
+      }
+      if (oldTask.audioUri && oldTask.audioUri !== task.audioUri) {
+        await safeDeleteFile(oldTask.audioUri)
+      }
+    }
     await updateTaskInDb(db, task)
     await syncTaskNotification(task, reminderOffset)
     await refreshTasks()
@@ -1175,6 +1200,14 @@ export default function App() {
         onPress: async () => {
           const db = dbRef.current
           if (!db) return
+          if (FileSystem.documentDirectory) {
+            try {
+              await FileSystem.deleteAsync(mediaFolder, { idempotent: true })
+              await FileSystem.makeDirectoryAsync(mediaFolder, { intermediates: true })
+            } catch (e) {
+              console.log('Error deleting media folder', e)
+            }
+          }
           await db.runAsync('DELETE FROM tasks;')
           await db.runAsync('DELETE FROM subjects;')
           await db.runAsync('DELETE FROM project_subtasks;')
