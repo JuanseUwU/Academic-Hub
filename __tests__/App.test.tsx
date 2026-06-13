@@ -1,12 +1,12 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
-import App from '../App';
+import App, { getGreeting } from '../App';
 
 describe('App Initialization', () => {
   it('renders the greeting after initialization', async () => {
     const { findByText } = render(<App />);
 
-    expect(await findByText('Buenos días')).toBeTruthy();
+    expect(await findByText(getGreeting())).toBeTruthy();
   });
 
   it('displays all five bottom tabs', async () => {
@@ -34,5 +34,17 @@ describe('App Initialization', () => {
     const { findByLabelText } = render(<App />);
 
     expect(await findByLabelText('Añadir nueva tarea')).toBeTruthy();
+  });
+
+  it('uses the morning greeting before noon', () => {
+    expect(getGreeting(new Date(2026, 5, 13, 8))).toBe('Buenos días');
+  });
+
+  it('uses the afternoon greeting before 19:00', () => {
+    expect(getGreeting(new Date(2026, 5, 13, 15))).toBe('Buenas tardes');
+  });
+
+  it('uses the evening greeting from 19:00', () => {
+    expect(getGreeting(new Date(2026, 5, 13, 21))).toBe('Buenas noches');
   });
 });

@@ -340,6 +340,13 @@ const formatIso = (date: Date) => {
   return `${yyyy}-${mm}-${dd}`
 }
 
+export const getGreeting = (date = new Date()) => {
+  const hour = date.getHours()
+  if (hour < 12) return 'Buenos días'
+  if (hour < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+}
+
 const validateDateTime = (dateStr: string, timeStr: string): string | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return 'La fecha debe tener el formato YYYY-MM-DD. Por ejemplo: 2026-05-20'
   const parsedDate = new Date(dateStr)
@@ -1549,10 +1556,17 @@ function Header({
   styles: ReturnType<typeof createStyles>
   theme: Theme
 }) {
+  const [greeting, setGreeting] = useState(() => getGreeting())
+
+  useEffect(() => {
+    const interval = setInterval(() => setGreeting(getGreeting()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <View style={styles.header}>
       <View style={styles.headerCopy}>
-        <Text style={styles.eyebrow}>Buenos días</Text>
+        <Text style={styles.eyebrow}>{greeting}</Text>
         <Text style={styles.heroTitle}>Estudiante</Text>
         <Text style={styles.subcopy}>{pendingCount} pendientes por organizar hoy</Text>
       </View>
