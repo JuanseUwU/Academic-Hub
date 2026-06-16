@@ -12,7 +12,6 @@ import * as ImagePicker from 'expo-image-picker'
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Speech from 'expo-speech'
 import * as SQLite from 'expo-sqlite'
-import { StatusBar } from 'expo-status-bar'
 import {
   AudioLines,
   Bell,
@@ -21,8 +20,10 @@ import {
   CalendarDays,
   Camera,
   Check,
+  CheckCircle,
   ChevronRight,
   Clock3,
+  Eye,
   FolderOpen,
   Home,
   Image as ImageIcon,
@@ -30,8 +31,10 @@ import {
   Mic,
   Moon,
   Pause,
+  Pencil,
   Play,
   Plus,
+  PlusCircle,
   Save,
   Search,
   Send,
@@ -45,20 +48,58 @@ import {
   ActivityIndicator,
   Alert,
   Image as RNImage,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
+  useColorScheme,
 } from 'react-native'
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context'
+import * as SystemUI from 'expo-system-ui'
+import { SystemBars } from 'react-native-edge-to-edge'
+import DateTimePicker from '@react-native-community/datetimepicker'
+import * as Notifications from 'expo-notifications'
+import { Calendar, LocaleConfig } from 'react-native-calendars'
+
+LocaleConfig.locales['es'] = {
+  monthNames: [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ],
+  monthNamesShort: ['Ene.', 'Feb.', 'Mar', 'Abr', 'May', 'Jun', 'Jul.', 'Ago', 'Sept.', 'Oct.', 'Nov.', 'Dic.'],
+  dayNames: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  dayNamesShort: ['Dom.', 'Lun.', 'Mar.', 'Mié.', 'Jue.', 'Vie.', 'Sáb.'],
+  today: 'Hoy',
+}
+LocaleConfig.defaultLocale = 'es'
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+})
 
 type Tab = 'home' | 'calendar' | 'projects' | 'assistant' | 'settings'
-type ThemeName = 'dark' | 'light'
+type ThemeName = 'dark' | 'light' | 'dark_colorblind' | 'light_colorblind'
 type Priority = 'Alta' | 'Media' | 'Baja'
 type FontScale = 1 | 1.15 | 1.3
 
@@ -71,7 +112,7 @@ type Task = {
   time: string
   priority: Priority
   done: boolean
-  reminder: boolean
+  reminder: number
   imageUri: string | null
   audioUri: string | null
   createdAt: string
@@ -137,6 +178,8 @@ type Theme = {
   accent: string
   accentSoft: string
   tab: string
+  danger: string
+  success: string
 }
 
 const themes: Record<ThemeName, Theme> = {
@@ -153,6 +196,8 @@ const themes: Record<ThemeName, Theme> = {
     accent: '#39bfd1',
     accentSoft: 'rgba(57,191,209,0.16)',
     tab: 'rgba(5,6,8,0.94)',
+    danger: '#ff7a8a',
+    success: '#63d8ad',
   },
   light: {
     name: 'light',
@@ -167,15 +212,49 @@ const themes: Record<ThemeName, Theme> = {
     accent: '#1c93ad',
     accentSoft: 'rgba(28,147,173,0.14)',
     tab: 'rgba(247,248,251,0.96)',
+    danger: '#e63946',
+    success: '#2a9d8f',
+  },
+  dark_colorblind: {
+    name: 'dark_colorblind',
+    bg: '#050608',
+    card: 'rgba(26, 28, 31, 0.86)',
+    surface: 'rgba(255,255,255,0.055)',
+    surfaceStrong: 'rgba(255,255,255,0.09)',
+    text: '#f6f7fb',
+    muted: '#9da0ab',
+    soft: '#727783',
+    border: 'rgba(255,255,255,0.13)',
+    accent: '#39bfd1',
+    accentSoft: 'rgba(57,191,209,0.16)',
+    tab: 'rgba(5,6,8,0.94)',
+    danger: '#ffb347',
+    success: '#5aa9e6',
+  },
+  light_colorblind: {
+    name: 'light_colorblind',
+    bg: '#f7f8fb',
+    card: 'rgba(255,255,255,0.94)',
+    surface: 'rgba(255,255,255,0.72)',
+    surfaceStrong: 'rgba(255,255,255,0.96)',
+    text: '#11141a',
+    muted: '#666b78',
+    soft: '#858b98',
+    border: 'rgba(16,24,40,0.12)',
+    accent: '#1c93ad',
+    accentSoft: 'rgba(28,147,173,0.14)',
+    tab: 'rgba(247,248,251,0.96)',
+    danger: '#e07a5f',
+    success: '#3d5a80',
   },
 }
 
 const starterSubjectNames = [
-  'Gestion de Proyectos',
+  'Gestión de Proyectos',
   'Base de Datos',
-  'Interaccion Humano-Computador',
-  'Investigacion',
-  'Matematicas',
+  'Interacción Humano-Computador',
+  'Investigación',
+  'Matemáticas',
 ]
 
 const weekLabels = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
@@ -193,7 +272,7 @@ const starterProjects = (): Project[] => [
   {
     id: 'projectx',
     title: 'ProjectX',
-    course: 'Interaccion Humano-Computador',
+    course: 'Interacción Humano-Computador',
     due: 'Entrega parcial',
     description: 'Prototipo, prueba de usabilidad y entrega documentada para IHC.',
     progress: 72,
@@ -202,10 +281,10 @@ const starterProjects = (): Project[] => [
   },
   {
     id: 'capm',
-    title: 'Certificacion CAPM',
-    course: 'Preparacion profesional',
+    title: 'Certificación CAPM',
+    course: 'Preparación profesional',
     due: 'Simulacro viernes',
-    description: 'Plan de practica con simulacros, lectura PMBOK y revision de errores.',
+    description: 'Plan de práctica con simulacros, lectura PMBOK y revisión de errores.',
     progress: 46,
     accent: '#8bb7ff',
     createdAt: new Date().toISOString(),
@@ -216,7 +295,7 @@ const starterProjectSubtasks = (): ProjectSubtask[] => [
   {
     id: makeId(),
     projectId: 'projectx',
-    title: 'Cerrar alcance y criterios de evaluacion',
+    title: 'Cerrar alcance y criterios de evaluación',
     done: true,
     createdAt: new Date().toISOString(),
   },
@@ -254,7 +333,27 @@ const dbName = 'academic_hub.db'
 const mediaFolder = `${FileSystem.documentDirectory ?? ''}academic-hub-media/`
 const fontScales: FontScale[] = [1, 1.15, 1.3]
 
-const formatIso = (date: Date) => date.toISOString().slice(0, 10)
+const formatIso = (date: Date) => {
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+export const getGreeting = (date = new Date()) => {
+  const hour = date.getHours()
+  if (hour < 12) return 'Buenos días'
+  if (hour < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+}
+
+const validateDateTime = (dateStr: string, timeStr: string): string | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return 'La fecha debe tener el formato YYYY-MM-DD. Por ejemplo: 2026-05-20'
+  const parsedDate = new Date(dateStr)
+  if (isNaN(parsedDate.getTime()) || parsedDate.toISOString().split('T')[0] !== dateStr) return 'La fecha ingresada no existe en el calendario.'
+  if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)) return 'La hora debe tener el formato HH:mm (24 horas). Por ejemplo: 14:30'
+  return null
+}
 
 const offsetDate = (days: number) => {
   const date = new Date()
@@ -267,14 +366,14 @@ const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 const starterTasks = (): Task[] => [
   {
     id: makeId(),
-    title: 'Aprobar cronograma de Activate',
+    title: 'Aprobar cronograma de Actívate',
     description: 'Revisar fechas, responsables y entregables antes de enviarlo.',
-    course: 'Gestion de Proyectos',
+    course: 'Gestión de Proyectos',
     date: offsetDate(0),
     time: '09:30',
     priority: 'Alta',
     done: false,
-    reminder: true,
+    reminder: 1,
     imageUri: null,
     audioUri: null,
     createdAt: new Date().toISOString(),
@@ -288,21 +387,21 @@ const starterTasks = (): Task[] => [
     time: '14:00',
     priority: 'Media',
     done: false,
-    reminder: true,
+    reminder: 1,
     imageUri: null,
     audioUri: null,
     createdAt: new Date().toISOString(),
   },
   {
     id: makeId(),
-    title: 'Grabar resumen de metodologia',
+    title: 'Grabar resumen de metodología',
     description: 'Explicar hallazgos principales de la prueba de usabilidad.',
-    course: 'Investigacion',
+    course: 'Investigación',
     date: offsetDate(1),
     time: '18:20',
     priority: 'Baja',
     done: false,
-    reminder: false,
+    reminder: 0,
     imageUri: null,
     audioUri: null,
     createdAt: new Date().toISOString(),
@@ -312,8 +411,14 @@ const starterTasks = (): Task[] => [
 const rowToTask = (row: TaskRow): Task => ({
   ...row,
   done: row.done === 1,
-  reminder: row.reminder === 1,
+  reminder: Number.isFinite(Number(row.reminder)) ? Number(row.reminder) : 0,
 })
+
+const sortTasks = (items: Task[]) =>
+  [...items].sort((a, b) => {
+    const scheduleOrder = `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)
+    return scheduleOrder || b.createdAt.localeCompare(a.createdAt)
+  })
 
 async function ensureMediaDirectory() {
   if (!FileSystem.documentDirectory) return
@@ -332,6 +437,18 @@ async function copyToAppStorage(uri: string, fallbackExtension: string) {
   const target = `${mediaFolder}${makeId()}${extension}`
   await FileSystem.copyAsync({ from: uri, to: target })
   return target
+}
+
+async function safeDeleteFile(uri: string | null) {
+  if (!uri || !FileSystem.documentDirectory) return
+  try {
+    const info = await FileSystem.getInfoAsync(uri)
+    if (info.exists) {
+      await FileSystem.deleteAsync(uri, { idempotent: true })
+    }
+  } catch (e) {
+    console.log('Error deleting file', e)
+  }
 }
 
 async function setupDatabase(db: SQLite.SQLiteDatabase) {
@@ -401,7 +518,7 @@ async function insertTask(db: SQLite.SQLiteDatabase, task: Task) {
     task.time,
     task.priority,
     task.done ? 1 : 0,
-    task.reminder ? 1 : 0,
+    task.reminder,
     task.imageUri,
     task.audioUri,
     task.createdAt,
@@ -487,7 +604,7 @@ async function updateTaskInDb(db: SQLite.SQLiteDatabase, task: Task) {
     task.time,
     task.priority,
     task.done ? 1 : 0,
-    task.reminder ? 1 : 0,
+    task.reminder,
     task.imageUri,
     task.audioUri,
     task.id,
@@ -594,7 +711,7 @@ function runLocalAssistant(question: string, tasks: Task[], subjects: string[]):
       question.trim(),
     )
 
-  if (normalized.includes('que puedes hacer') || normalized.includes('ayuda')) {
+  if (normalized.includes('qué puedes hacer') || normalized.includes('que puedes hacer') || normalized.includes('ayuda')) {
     return {
       answer:
         'Puedo consultar tus tareas, crear actividades, resumir carga, sugerir un plan, buscar tareas con audio o imagen y leer respuestas en voz alta. Ejemplo: "agrega tarea estudiar SQL para mañana a las 18:30 prioridad alta".',
@@ -610,13 +727,13 @@ function runLocalAssistant(question: string, tasks: Task[], subjects: string[]):
       date: getDateFromQuestion(question) ?? formatIso(new Date()),
       time: getTimeFromText(question),
       priority: getPriorityFromText(normalized),
-      reminder: true,
+      reminder: 1,
       imageUri: null,
       audioUri: null,
     }
 
     return {
-      answer: `Listo, cree la tarea "${taskDraft.title}" para ${taskDraft.date} a las ${taskDraft.time}.`,
+      answer: `Por favor confirma los detalles detectados para "${taskDraft.title}".`,
       taskDraft,
     }
   }
@@ -655,21 +772,21 @@ function runLocalAssistant(question: string, tasks: Task[], subjects: string[]):
     matches = matches.filter((task) => task.audioUri)
   }
 
-  if (normalized.includes('cuantas') || normalized.includes('cuantos')) {
+  if (normalized.includes('cuántas') || normalized.includes('cuantas') || normalized.includes('cuántos') || normalized.includes('cuantos')) {
     return { answer: `Tienes ${matches.length} actividad${matches.length === 1 ? '' : 'es'} que coinciden con eso.` }
   }
 
   if (!matches.length) {
     return {
       answer: date
-        ? `No encontre tareas pendientes para ${date}.`
-        : 'No encontre tareas con esos filtros. Puedes preguntar: "que deber tengo para el martes", "plan de estudio" o "agrega tarea estudiar SQL para mañana a las 18:30".',
+        ? `No encontré tareas pendientes para ${date}.`
+        : 'No encontré tareas con esos filtros. Puedes preguntar: "¿qué deber tengo para el martes?", "plan de estudio" o "agrega tarea estudiar SQL para mañana a las 18:30".',
     }
   }
 
   const header = date
     ? `Para ${date} tienes ${matches.length} actividad${matches.length === 1 ? '' : 'es'}:`
-    : `Encontre ${matches.length} actividad${matches.length === 1 ? '' : 'es'}:`
+    : `Encontré ${matches.length} actividad${matches.length === 1 ? '' : 'es'}:`
 
   return { answer: `${header}\n${matches.slice(0, 5).map(formatTaskLine).join('\n')}` }
 }
@@ -684,22 +801,70 @@ function speakText(text: string) {
 }
 
 function taskToSpeech(task: Task) {
-  return `${task.title}. Materia: ${task.course}. Fecha: ${task.date}, hora ${task.time}. Prioridad ${task.priority}. ${task.description || 'Sin descripcion.'}`
+  return `${task.title}. Materia: ${task.course}. Fecha: ${task.date}, hora ${task.time}. Prioridad ${task.priority}. ${task.description || 'Sin descripción.'}`
+}
+
+function useKeyboardVisible() {
+  const [isVisible, setIsVisible] = useState(false)
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsVisible(true))
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsVisible(false))
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [])
+  return isVisible
+}
+
+function ScrollSpacer() {
+  const insets = useSafeAreaInsets()
+  return <View style={{ height: 116 + Math.max(insets.bottom, 16) }} />
+}
+
+function Fab({ onPress, styles }: { onPress: () => void, styles: ReturnType<typeof createStyles> }) {
+  const isKeyboardVisible = useKeyboardVisible()
+  const insets = useSafeAreaInsets()
+  const bottomInset = Math.max(insets.bottom, 16)
+
+  if (isKeyboardVisible) return null
+
+  return (
+    <Pressable
+      style={[styles.fab, { bottom: bottomInset + 105 }]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Añadir nueva tarea"
+    >
+      <Plus color="#041113" size={32} strokeWidth={2.5} />
+    </Pressable>
+  )
 }
 
 export default function App() {
+  const systemColorScheme = useColorScheme()
   const dbRef = useRef<SQLite.SQLiteDatabase | null>(null)
   const activePlayerRef = useRef<AudioPlayer | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('home')
-  const [themeName, setThemeName] = useState<ThemeName>('dark')
+  const [themeName, setThemeName] = useState<ThemeName>(systemColorScheme === 'light' ? 'light' : 'dark')
+  const theme = themes[themeName]
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      SystemUI.setBackgroundColorAsync(theme.bg).catch(() => {})
+    }
+  }, [theme.bg])
+
   const [fontScale, setFontScale] = useState<FontScale>(1)
   const [voiceMode, setVoiceMode] = useState(false)
+  const [reminderOffset, setReminderOffset] = useState<number>(60)
   const [tasks, setTasks] = useState<Task[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [projectSubtasks, setProjectSubtasks] = useState<ProjectSubtask[]>([])
   const [query, setQuery] = useState('')
   const [modalVisible, setModalVisible] = useState(false)
+  const [assistantTaskDraft, setAssistantTaskDraft] = useState<TaskDraft | null>(null)
   const [subjectModalVisible, setSubjectModalVisible] = useState(false)
   const [projectModalVisible, setProjectModalVisible] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -707,7 +872,7 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState(formatIso(new Date()))
   const [isReady, setIsReady] = useState(false)
-  const theme = themes[themeName]
+  const scrollViewRef = useRef<ScrollView>(null)
   const styles = useMemo(() => createStyles(theme, fontScale), [theme, fontScale])
   const today = formatIso(new Date())
 
@@ -761,6 +926,10 @@ export default function App() {
         'SELECT value FROM settings WHERE key = ?;',
         'voiceMode',
       )
+      const savedReminderOffset = await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM settings WHERE key = ?;',
+        'reminderOffset',
+      )
       const nextTasks = await loadTasks(db)
       const nextSubjects = await loadSubjects(db)
       const nextProjects = await loadProjects(db)
@@ -779,6 +948,11 @@ export default function App() {
         setFontScale(parsedScale as FontScale)
       }
       setVoiceMode(savedVoiceMode?.value === 'true')
+      if (savedReminderOffset?.value) setReminderOffset(Number(savedReminderOffset.value))
+
+      const { status: existingStatus } = await Notifications.getPermissionsAsync()
+      if (existingStatus !== 'granted') await Notifications.requestPermissionsAsync()
+
       setIsReady(true)
     }
 
@@ -822,6 +996,18 @@ export default function App() {
     }
   }
 
+  const saveReminderOffset = async (offset: number) => {
+    setReminderOffset(offset)
+    const db = dbRef.current
+    if (!db) return
+    await db.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;',
+      'reminderOffset',
+      String(offset),
+    )
+    await syncAllTaskNotifications(tasks, offset)
+  }
+
   const refreshTasks = async () => {
     const db = dbRef.current
     if (!db) return
@@ -854,6 +1040,17 @@ export default function App() {
     )
   }, [query, tasks])
 
+  const filteredProjects = useMemo(() => {
+    const normalized = normalizeText(query.trim())
+    return projects.filter((project) =>
+      normalized
+        ? normalizeText(`${project.title} ${project.course} ${project.description} ${project.due}`).includes(
+            normalized,
+          )
+        : true,
+    )
+  }, [query, projects])
+
   const todayTasks = filteredTasks.filter((task) => task.date === today)
   const pendingCount = tasks.filter((task) => !task.done).length
   const completedCount = tasks.filter((task) => task.done).length
@@ -871,12 +1068,61 @@ export default function App() {
     : []
   const subjectNames = subjects.map((subject) => subject.name)
 
+  const [editingSubjectName, setEditingSubjectName] = useState<string | null>(null)
+  const [isEditingSubjectsApp, setIsEditingSubjectsApp] = useState(false)
+
   const addSubject = async (name: string) => {
     const cleanName = name.trim()
     const db = dbRef.current
     if (!db || !cleanName) return
     await insertSubject(db, { id: makeId(), name: cleanName, createdAt: new Date().toISOString() })
     await refreshSubjects()
+  }
+
+  const updateSubjectName = async (oldName: string, newName: string) => {
+    const cleanName = newName.trim()
+    const db = dbRef.current
+    if (!db || !cleanName || oldName === cleanName) return
+    await db.runAsync('UPDATE subjects SET name = ? WHERE name = ?;', cleanName, oldName)
+    await db.runAsync('UPDATE tasks SET course = ? WHERE course = ?;', cleanName, oldName)
+    await db.runAsync('UPDATE projects SET course = ? WHERE course = ?;', cleanName, oldName)
+    await refreshSubjects()
+    await refreshTasks()
+    await refreshProjects()
+  }
+
+  const deleteSubjectAndCascade = (subjectName: string) => {
+    Alert.alert(
+      'Eliminar asignatura',
+      `¿Estás seguro de que deseas eliminar "${subjectName}"?\nSe borrarán permanentemente TODAS las tareas y proyectos asociados a esta asignatura.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar en cascada',
+          style: 'destructive',
+          onPress: async () => {
+            const db = dbRef.current
+            if (!db) return
+            const tasksToDelete = tasks.filter((t) => t.course === subjectName)
+            for (const t of tasksToDelete) {
+              await cancelTaskNotification(t.id)
+              await safeDeleteFile(t.imageUri)
+              await safeDeleteFile(t.audioUri)
+            }
+            const projectsToDelete = projects.filter((p) => p.course === subjectName)
+            for (const p of projectsToDelete) {
+              await db.runAsync('DELETE FROM project_subtasks WHERE projectId = ?;', p.id)
+            }
+            await db.runAsync('DELETE FROM tasks WHERE course = ?;', subjectName)
+            await db.runAsync('DELETE FROM projects WHERE course = ?;', subjectName)
+            await db.runAsync('DELETE FROM subjects WHERE name = ?;', subjectName)
+            await refreshSubjects()
+            await refreshTasks()
+            await refreshProjects()
+          },
+        },
+      ]
+    )
   }
 
   const addProject = async (input: ProjectDraft) => {
@@ -896,7 +1142,7 @@ export default function App() {
   }
 
   const deleteProject = async (project: Project) => {
-    Alert.alert('Eliminar proyecto', `Se eliminara "${project.title}" y sus subtareas.`, [
+    Alert.alert('Eliminar proyecto', `Se eliminará "${project.title}" y sus subtareas.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
@@ -943,29 +1189,60 @@ export default function App() {
       createdAt: new Date().toISOString(),
     }
 
-    await insertTask(db, task)
-    await refreshTasks()
+    setTasks((current) => sortTasks([...current, task]))
     setModalVisible(false)
-    setActiveTab('home')
+
+    try {
+      await insertTask(db, task)
+      void syncTaskNotification(task, reminderOffset)
+    } catch (error) {
+      setTasks((current) => current.filter((item) => item.id !== task.id))
+      Alert.alert('No se pudo guardar la tarea', String(error))
+    }
   }
 
   const toggleTask = async (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId)
     if (!task) return
-    await dbRef.current?.runAsync('UPDATE tasks SET done = ? WHERE id = ?;', task.done ? 0 : 1, taskId)
+    const nextDone = task.done ? 0 : 1
+    await dbRef.current?.runAsync('UPDATE tasks SET done = ? WHERE id = ?;', nextDone, taskId)
+    if (nextDone) {
+      await cancelTaskNotification(taskId)
+    } else {
+      await syncTaskNotification({ ...task, done: false }, reminderOffset)
+    }
     await refreshTasks()
   }
 
   const deleteTask = async (task: Task) => {
-    Alert.alert('Eliminar tarea', `Se eliminara "${task.title}".`, [
+    Alert.alert('Eliminar tarea', `Se eliminará "${task.title}".`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
-          await dbRef.current?.runAsync('DELETE FROM tasks WHERE id = ?;', task.id)
+          const db = dbRef.current
+          if (!db) {
+            Alert.alert('No se pudo eliminar la tarea', 'La base de datos no está disponible.')
+            return
+          }
+
+          setTasks((current) => current.filter((item) => item.id !== task.id))
           if (selectedTaskId === task.id) setSelectedTaskId(null)
-          await refreshTasks()
+
+          try {
+            await db.runAsync('DELETE FROM tasks WHERE id = ?;', task.id)
+            void cancelTaskNotification(task.id)
+            void safeDeleteFile(task.imageUri)
+            void safeDeleteFile(task.audioUri)
+          } catch (error) {
+            setTasks((current) =>
+              current.some((item) => item.id === task.id)
+                ? current
+                : sortTasks([...current, task]),
+            )
+            Alert.alert('No se pudo eliminar la tarea', String(error))
+          }
         },
       },
     ])
@@ -974,8 +1251,30 @@ export default function App() {
   const updateTask = async (task: Task) => {
     const db = dbRef.current
     if (!db) return
-    await updateTaskInDb(db, task)
-    await refreshTasks()
+    const oldTask = tasks.find((t) => t.id === task.id)
+
+    setTasks((current) =>
+      sortTasks(current.map((item) => (item.id === task.id ? task : item))),
+    )
+
+    try {
+      await updateTaskInDb(db, task)
+      void syncTaskNotification(task, reminderOffset)
+
+      if (oldTask?.imageUri && oldTask.imageUri !== task.imageUri) {
+        void safeDeleteFile(oldTask.imageUri)
+      }
+      if (oldTask?.audioUri && oldTask.audioUri !== task.audioUri) {
+        void safeDeleteFile(oldTask.audioUri)
+      }
+    } catch (error) {
+      if (oldTask) {
+        setTasks((current) =>
+          sortTasks(current.map((item) => (item.id === oldTask.id ? oldTask : item))),
+        )
+      }
+      Alert.alert('No se pudieron guardar los cambios', String(error))
+    }
   }
 
   const playAudio = (uri: string) => {
@@ -986,7 +1285,7 @@ export default function App() {
   }
 
   const resetData = async () => {
-    Alert.alert('Reiniciar datos', 'Esto borrara tareas guardadas y cargara datos de ejemplo.', [
+    Alert.alert('Reiniciar datos', 'Esto borrará tareas guardadas y cargará datos de ejemplo.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Reiniciar',
@@ -994,6 +1293,14 @@ export default function App() {
         onPress: async () => {
           const db = dbRef.current
           if (!db) return
+          if (FileSystem.documentDirectory) {
+            try {
+              await FileSystem.deleteAsync(mediaFolder, { idempotent: true })
+              await FileSystem.makeDirectoryAsync(mediaFolder, { intermediates: true })
+            } catch (e) {
+              console.log('Error deleting media folder', e)
+            }
+          }
           await db.runAsync('DELETE FROM tasks;')
           await db.runAsync('DELETE FROM subjects;')
           await db.runAsync('DELETE FROM project_subtasks;')
@@ -1029,13 +1336,15 @@ export default function App() {
 
   return (
     <View style={styles.app}>
-      <StatusBar style={themeName === 'dark' ? 'light' : 'dark'} />
+      <SystemBars style={themeName === 'dark' ? 'light' : 'dark'} />
+    <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ flex: 1, backgroundColor: theme.bg }}>
       <LinearGradient
         colors={themeName === 'dark' ? ['#08353b', theme.bg] : ['#d8f1f5', theme.bg]}
         style={styles.gradient}
       >
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
           <ScrollView
+            ref={scrollViewRef}
             contentContainerStyle={styles.screen}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -1046,6 +1355,11 @@ export default function App() {
               setQuery={setQuery}
               styles={styles}
               theme={theme}
+              onSubmitEditing={() => {
+                if (activeTab === 'home') {
+                  scrollViewRef.current?.scrollTo({ y: 420, animated: true })
+                }
+              }}
               onMicPress={() => {
                 setQuery((current) => (normalizeText(current).includes('voz') ? '' : 'voz'))
                 setActiveTab('calendar')
@@ -1090,13 +1404,19 @@ export default function App() {
                 styles={styles}
                 tasks={tasks}
                 theme={theme}
-                projects={projects}
+                projects={filteredProjects}
                 subjects={subjects}
                 subtasks={projectSubtasks}
                 onAddProject={() => setProjectModalVisible(true)}
                 onAddSubject={() => setSubjectModalVisible(true)}
+                onUpdateSubject={(name) => {
+                  setEditingSubjectName(name)
+                  setSubjectModalVisible(true)
+                }}
+                onDeleteSubject={deleteSubjectAndCascade}
                 onOpenCourse={setSelectedCourse}
                 onOpenProject={setSelectedProjectId}
+                onEditingChange={setIsEditingSubjectsApp}
               />
             )}
             {activeTab === 'assistant' && (
@@ -1106,7 +1426,10 @@ export default function App() {
                 theme={theme}
                 voiceMode={voiceMode}
                 subjects={subjectNames}
-                onCreateTask={addTask}
+                onCreateTask={async (draft) => {
+                  setAssistantTaskDraft(draft)
+                  setModalVisible(true)
+                }}
               />
             )}
             {activeTab === 'settings' && (
@@ -1120,33 +1443,59 @@ export default function App() {
                 setFontScale={saveFontScale}
                 voiceMode={voiceMode}
                 setVoiceMode={saveVoiceMode}
+                reminderOffset={reminderOffset}
+                setReminderOffset={saveReminderOffset}
                 resetData={resetData}
                 imageCount={imageCount}
                 audioCount={audioCount}
               />
             )}
+            <ScrollSpacer />
           </ScrollView>
 
-          <Pressable style={styles.fab} onPress={() => setModalVisible(true)}>
-            <Plus color="#041113" size={32} strokeWidth={2.5} />
-          </Pressable>
+          {(!isEditingSubjectsApp || activeTab !== 'projects') && (
+            <Fab onPress={() => setModalVisible(true)} styles={styles} />
+          )}
 
-          <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} styles={styles} theme={theme} />
+          <BottomTabs
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            styles={styles}
+            theme={theme}
+          />
         </SafeAreaView>
       </LinearGradient>
+    </SafeAreaProvider>
 
       <TaskModal
         defaultDate={today}
-        onClose={() => setModalVisible(false)}
-        onSubmit={addTask}
+        onClose={() => {
+          setModalVisible(false)
+          setAssistantTaskDraft(null)
+        }}
+        onSubmit={(draft) => {
+          addTask(draft)
+          setAssistantTaskDraft(null)
+        }}
+        initialDraft={assistantTaskDraft}
         courses={subjectNames}
         styles={styles}
         theme={theme}
         visible={modalVisible}
       />
       <SubjectModal
-        onClose={() => setSubjectModalVisible(false)}
-        onSubmit={addSubject}
+        initialName={editingSubjectName}
+        onClose={() => {
+          setSubjectModalVisible(false)
+          setEditingSubjectName(null)
+        }}
+        onSubmit={async (newName) => {
+          if (editingSubjectName) {
+            await updateSubjectName(editingSubjectName, newName)
+          } else {
+            await addSubject(newName)
+          }
+        }}
         styles={styles}
         theme={theme}
         visible={subjectModalVisible}
@@ -1160,6 +1509,7 @@ export default function App() {
         visible={projectModalVisible}
       />
       <TaskDetailModal
+        courses={subjectNames}
         task={selectedTask}
         onClose={() => setSelectedTaskId(null)}
         onDelete={deleteTask}
@@ -1206,10 +1556,17 @@ function Header({
   styles: ReturnType<typeof createStyles>
   theme: Theme
 }) {
+  const [greeting, setGreeting] = useState(() => getGreeting())
+
+  useEffect(() => {
+    const interval = setInterval(() => setGreeting(getGreeting()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <View style={styles.header}>
       <View style={styles.headerCopy}>
-        <Text style={styles.eyebrow}>Buenos dias</Text>
+        <Text style={styles.eyebrow}>{greeting}</Text>
         <Text style={styles.heroTitle}>Estudiante</Text>
         <Text style={styles.subcopy}>{pendingCount} pendientes por organizar hoy</Text>
       </View>
@@ -1223,6 +1580,7 @@ function Header({
 function SearchBar({
   onAssistantPress,
   onMicPress,
+  onSubmitEditing,
   query,
   setQuery,
   styles,
@@ -1230,6 +1588,7 @@ function SearchBar({
 }: {
   onAssistantPress: () => void
   onMicPress: () => void
+  onSubmitEditing?: () => void
   query: string
   setQuery: Dispatch<SetStateAction<string>>
   styles: ReturnType<typeof createStyles>
@@ -1244,6 +1603,7 @@ function SearchBar({
         style={styles.searchInput}
         value={query}
         onChangeText={setQuery}
+        onSubmitEditing={onSubmitEditing}
       />
       <Pressable style={styles.searchIconButton} onPress={onAssistantPress}>
         <Bot color={theme.muted} size={21} />
@@ -1298,7 +1658,7 @@ function HomeView({
       </View>
 
       <View style={styles.metricsGrid}>
-        <MetricCard label="Imagenes" value={imageCount} styles={styles} />
+        <MetricCard label="Imágenes" value={imageCount} styles={styles} />
         <MetricCard label="Notas de voz" value={audioCount} styles={styles} />
       </View>
 
@@ -1362,32 +1722,43 @@ function CalendarView({
   playAudio: (uri: string) => void
   onOpenTask: (taskId: string) => void
 }) {
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date()
-    date.setDate(date.getDate() + index)
-    return { iso: formatIso(date), label: weekLabels[date.getDay()], day: date.getDate() }
-  })
   const selectedTasks = tasks.filter((task) => task.date === selectedDate)
+  const markedDates: any = {}
+
+  tasks.forEach((task) => {
+    if (!markedDates[task.date]) {
+      markedDates[task.date] = { marked: true, dotColor: theme.accent }
+    }
+  })
+
+  if (markedDates[selectedDate]) {
+    markedDates[selectedDate] = { ...markedDates[selectedDate], selected: true, selectedColor: theme.accent }
+  } else {
+    markedDates[selectedDate] = { selected: true, selectedColor: theme.accent }
+  }
 
   return (
     <View style={styles.stack}>
       <View>
         <SectionTitle styles={styles} theme={theme} title="Calendario" />
-        <View style={styles.weekStrip}>
-          {days.map((day) => {
-            const active = day.iso === selectedDate
-            return (
-              <Pressable
-                key={day.iso}
-                onPress={() => setSelectedDate(day.iso)}
-                style={[styles.dayPill, active && styles.dayPillActive]}
-              >
-                <Text style={[styles.dayLabel, active && { color: theme.accent }]}>{day.label}</Text>
-                <Text style={styles.dayNumber}>{day.day}</Text>
-              </Pressable>
-            )
-          })}
-        </View>
+        <Calendar
+          current={selectedDate}
+          onDayPress={(day: any) => setSelectedDate(day.dateString)}
+          markedDates={markedDates}
+          theme={{
+            calendarBackground: 'transparent',
+            textSectionTitleColor: theme.muted,
+            dayTextColor: theme.text,
+            todayTextColor: theme.accent,
+            selectedDayTextColor: '#ffffff',
+            monthTextColor: theme.text,
+            selectedDayBackgroundColor: theme.accent,
+            arrowColor: theme.accent,
+            textDisabledColor: theme.border,
+            dotColor: theme.accent,
+            selectedDotColor: '#ffffff',
+          }}
+        />
       </View>
 
       <View style={styles.panel}>
@@ -1416,8 +1787,11 @@ function CalendarView({
 function ProjectsView({
   onAddProject,
   onAddSubject,
+  onUpdateSubject,
+  onDeleteSubject,
   onOpenCourse,
   onOpenProject,
+  onEditingChange,
   projects,
   styles,
   subjects,
@@ -1427,8 +1801,11 @@ function ProjectsView({
 }: {
   onAddProject: () => void
   onAddSubject: () => void
+  onUpdateSubject: (subjectName: string) => void
+  onDeleteSubject: (subjectName: string) => void
   onOpenCourse: (course: string) => void
   onOpenProject: (projectId: string) => void
+  onEditingChange?: (isEditing: boolean) => void
   projects: Project[]
   styles: ReturnType<typeof createStyles>
   subjects: Subject[]
@@ -1436,6 +1813,14 @@ function ProjectsView({
   tasks: Task[]
   theme: Theme
 }) {
+  const [isEditingSubjects, setIsEditingSubjects] = useState(false)
+
+  const handleToggleEditing = () => {
+    const nextState = !isEditingSubjects
+    setIsEditingSubjects(nextState)
+    onEditingChange?.(nextState)
+  }
+
   return (
     <View style={styles.stack}>
       <View>
@@ -1456,13 +1841,25 @@ function ProjectsView({
       </View>
 
       <View>
-        <SectionTitle action="Agregar" onAction={onAddSubject} styles={styles} theme={theme} title="Carga por asignatura" />
+        <SectionTitle
+          actionIcon={PlusCircle}
+          onAction={onAddSubject}
+          secondaryActionIcon={isEditingSubjects ? CheckCircle : Pencil}
+          onSecondaryAction={handleToggleEditing}
+          styles={styles}
+          theme={theme}
+          title="Carga por asignatura"
+        />
         <View style={styles.courseList}>
           {subjects.map((subject) => {
             const courseTasks = tasks.filter((task) => task.course === subject.name)
             const amount = courseTasks.filter((task) => !task.done).length
             return (
-              <Pressable key={subject.id} style={styles.courseCard} onPress={() => onOpenCourse(subject.name)}>
+              <Pressable
+                key={subject.id}
+                style={styles.courseCard}
+                onPress={() => (isEditingSubjects ? onUpdateSubject(subject.name) : onOpenCourse(subject.name))}
+              >
                 <View style={styles.courseIcon}>
                   <BookOpen color={theme.accent} size={19} />
                 </View>
@@ -1472,7 +1869,13 @@ function ProjectsView({
                     {amount} pendientes | {courseTasks.length} tareas
                   </Text>
                 </View>
-                <ChevronRight color={theme.muted} size={20} />
+                {isEditingSubjects ? (
+                  <Pressable hitSlop={15} onPress={() => onDeleteSubject(subject.name)}>
+                    <Trash2 color={theme.danger} size={20} />
+                  </Pressable>
+                ) : (
+                  <ChevronRight color={theme.muted} size={20} />
+                )}
               </Pressable>
             )
           })}
@@ -1482,7 +1885,7 @@ function ProjectsView({
   )
 }
 
-function SettingsView({
+export function SettingsView({
   styles,
   taskCount,
   theme,
@@ -1492,6 +1895,8 @@ function SettingsView({
   setFontScale,
   voiceMode,
   setVoiceMode,
+  reminderOffset,
+  setReminderOffset,
   resetData,
   imageCount,
   audioCount,
@@ -1505,11 +1910,14 @@ function SettingsView({
   setFontScale: (scale: FontScale) => void
   voiceMode: boolean
   setVoiceMode: (enabled: boolean) => void
+  reminderOffset: number
+  setReminderOffset: (offset: number) => void
   resetData: () => void
   imageCount: number
   audioCount: number
 }) {
-  const isDark = themeName === 'dark'
+  const isDark = themeName.startsWith('dark')
+  const isColorblind = themeName.endsWith('colorblind')
 
   return (
     <View style={styles.stack}>
@@ -1522,13 +1930,29 @@ function SettingsView({
           <View style={styles.settingsCopy}>
             <Text style={styles.courseTitle}>Modo de apariencia</Text>
             <Text style={styles.cardMuted}>
-              {isDark ? 'Oscuro elegante con cian mate' : 'Claro limpio para estudiar de dia'}
+              {isDark ? 'Oscuro elegante con cian mate' : 'Claro limpio para estudiar de día'}
             </Text>
           </View>
           <Switch
             value={isDark}
-            onValueChange={(enabled) => setThemeName(enabled ? 'dark' : 'light')}
+            onValueChange={(enabled) => setThemeName(`${enabled ? 'dark' : 'light'}${isColorblind ? '_colorblind' : ''}` as ThemeName)}
             thumbColor={isDark ? theme.accent : '#ffffff'}
+            trackColor={{ false: theme.border, true: theme.accentSoft }}
+          />
+        </View>
+
+        <View style={styles.settingsCard}>
+          <View style={styles.courseIcon}>
+            <Eye color={theme.accent} size={24} />
+          </View>
+          <View style={styles.settingsCopy}>
+            <Text style={styles.courseTitle}>Modo para daltónicos</Text>
+            <Text style={styles.cardMuted}>Paleta segura (protanopía / deuteranopía)</Text>
+          </View>
+          <Switch
+            value={isColorblind}
+            onValueChange={(enabled) => setThemeName(`${isDark ? 'dark' : 'light'}${enabled ? '_colorblind' : ''}` as ThemeName)}
+            thumbColor={isColorblind ? theme.accent : '#ffffff'}
             trackColor={{ false: theme.border, true: theme.accentSoft }}
           />
         </View>
@@ -1541,7 +1965,7 @@ function SettingsView({
             <Text style={styles.accessibilityIconText}>Aa</Text>
           </View>
           <View style={styles.settingsCopy}>
-            <Text style={styles.courseTitle}>Tamano de letra</Text>
+            <Text style={styles.courseTitle}>Tamaño de letra</Text>
             <Text style={styles.cardMuted}>Aumenta texto y espaciado para leer con menos esfuerzo.</Text>
           </View>
         </View>
@@ -1554,6 +1978,31 @@ function SettingsView({
             >
               <Text style={[styles.segmentText, fontScale === scale && { color: theme.accent }]}>
                 {scale === 1 ? 'Normal' : scale === 1.15 ? 'Grande' : 'Muy grande'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.settingsSection}>
+        <View style={styles.settingsHeader}>
+          <View style={styles.courseIcon}>
+            <Bell color={theme.accent} size={23} />
+          </View>
+          <View style={styles.settingsCopy}>
+            <Text style={styles.courseTitle}>Anticipación de la alarma</Text>
+            <Text style={styles.cardMuted}>Minutos previos al recordatorio.</Text>
+          </View>
+        </View>
+        <View style={styles.segmentRow}>
+          {[0, 15, 30, 60, 120].map((mins) => (
+            <Pressable
+              key={mins}
+              style={[styles.segmentButton, reminderOffset === mins && styles.segmentButtonActive]}
+              onPress={() => setReminderOffset(mins)}
+            >
+              <Text style={[styles.segmentText, reminderOffset === mins && { color: theme.accent }]}>
+                {mins === 0 ? 'Exacto' : `${mins}m`}
               </Text>
             </Pressable>
           ))}
@@ -1586,13 +2035,13 @@ function SettingsView({
         <View style={styles.settingsCopy}>
           <Text style={styles.courseTitle}>Base local funcional</Text>
           <Text style={styles.cardMuted}>
-            Guarda tareas, estado, imagenes, notas de voz y tema en SQLite del dispositivo.
+            Guarda tareas, estado, imágenes, notas de voz y tema en SQLite del dispositivo.
           </Text>
         </View>
       </View>
 
       <Pressable style={styles.dangerAction} onPress={resetData}>
-        <Trash2 color="#ff7a8a" size={18} />
+        <Trash2 color={theme.danger} size={18} />
         <Text style={styles.dangerActionText}>Reiniciar datos de prueba</Text>
       </Pressable>
     </View>
@@ -1614,7 +2063,7 @@ function AssistantView({
   theme: Theme
   voiceMode: boolean
 }) {
-  const [question, setQuestion] = useState('Que deber tengo para el martes?')
+  const [question, setQuestion] = useState('¿Qué deber tengo para el martes?')
   const [answer, setAnswer] = useState(
     'Soy un asistente local: consulto tareas, creo actividades, resumo carga y ayudo a priorizar sin internet.',
   )
@@ -1629,16 +2078,17 @@ function AssistantView({
 
   const ask = async () => {
     if (!question.trim()) return
+    Keyboard.dismiss()
     await handleResult(runLocalAssistant(question, tasks, subjects))
   }
 
   const quickQuestions = [
-    'Que deber tengo hoy?',
-    'Que deber tengo para el martes?',
+    '¿Qué deber tengo hoy?',
+    '¿Qué deber tengo para el martes?',
     'Plan de estudio',
     'Resumen de carga',
     'Tareas urgentes',
-    'Agrega tarea leer capitulo para mañana a las 18:30 prioridad media',
+    'Agrega tarea leer capítulo para mañana a las 18:30 prioridad media',
   ]
 
   return (
@@ -1650,7 +2100,7 @@ function AssistantView({
           <View style={styles.settingsCopy}>
             <Text style={styles.courseTitle}>Modelo local mejorado</Text>
             <Text style={styles.cardMuted}>
-              Entiende dias, prioridades, asignaturas, multimedia, planes de estudio y comandos para crear tareas.
+              Entiende días, prioridades, asignaturas, multimedia, planes de estudio y comandos para crear tareas.
             </Text>
           </View>
         </View>
@@ -1662,13 +2112,13 @@ function AssistantView({
             <Bot color={theme.accent} size={21} />
           </View>
           <View style={styles.settingsCopy}>
-            <Text style={styles.courseTitle}>Asistente academico</Text>
-            <Text style={styles.cardMuted}>Pregunta por dias, materias, audios, imagenes o pendientes.</Text>
+            <Text style={styles.courseTitle}>Asistente académico</Text>
+            <Text style={styles.cardMuted}>Pregunta por días, materias, audios, imágenes o pendientes.</Text>
           </View>
         </View>
         <View style={styles.assistantInputRow}>
           <TextInput
-            placeholder="Ej. que deber tengo para el martes"
+            placeholder="Ej. ¿qué deber tengo para el martes?"
             placeholderTextColor={theme.muted}
             style={styles.assistantInput}
             value={question}
@@ -1677,21 +2127,6 @@ function AssistantView({
           <Pressable style={styles.sendButton} onPress={ask}>
             <Send color="#041113" size={18} />
           </Pressable>
-        </View>
-        <View style={styles.quickCommandGrid}>
-          {quickQuestions.map((item) => (
-            <Pressable
-              key={item}
-              style={styles.quickCommand}
-              onPress={async () => {
-                const result = runLocalAssistant(item, tasks, subjects)
-                setQuestion(item)
-                await handleResult(result)
-              }}
-            >
-              <Text style={styles.quickCommandText}>{item}</Text>
-            </Pressable>
-          ))}
         </View>
         <Text style={styles.assistantAnswer}>{answer}</Text>
         <View style={styles.assistantVoiceRow}>
@@ -1704,18 +2139,36 @@ function AssistantView({
             <Text style={styles.mediaBadgeText}>Detener voz</Text>
           </Pressable>
         </View>
+        <View style={styles.quickCommandGrid}>
+          {quickQuestions.map((item) => (
+            <Pressable
+              key={item}
+              style={styles.quickCommand}
+              onPress={async () => {
+                Keyboard.dismiss()
+                const result = runLocalAssistant(item, tasks, subjects)
+                setQuestion(item)
+                await handleResult(result)
+              }}
+            >
+              <Text style={styles.quickCommandText}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
     </View>
   )
 }
 
 function SubjectModal({
+  initialName,
   onClose,
   onSubmit,
   styles,
   theme,
   visible,
 }: {
+  initialName?: string | null
   onClose: () => void
   onSubmit: (name: string) => Promise<void>
   styles: ReturnType<typeof createStyles>
@@ -1723,6 +2176,12 @@ function SubjectModal({
   visible: boolean
 }) {
   const [name, setName] = useState('')
+
+  useEffect(() => {
+    if (visible) {
+      setName(initialName || '')
+    }
+  }, [visible, initialName])
 
   const submit = async () => {
     if (!name.trim()) {
@@ -1740,12 +2199,12 @@ function SubjectModal({
         <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.eyebrow}>Nueva asignatura</Text>
-                <Text style={styles.modalTitle}>Agregar materia</Text>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={styles.eyebrow}>{initialName ? 'Editar asignatura' : 'Nueva asignatura'}</Text>
+                <Text style={styles.modalTitle}>{initialName ? 'Editar materia' : 'Agregar materia'}</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10}>
-                <X color={theme.muted} size={22} />
+              <Pressable onPress={onClose} hitSlop={15} style={{ padding: 4 }}>
+                <X color={theme.muted} size={24} />
               </Pressable>
             </View>
             <TextInput
@@ -1794,7 +2253,7 @@ function ProjectModal({
 
   const submit = async () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'Escribe un nombre para el proyecto.')
+      Alert.alert('Falta el título', 'Escribe un nombre para el proyecto.')
       return
     }
     await onSubmit({
@@ -1827,7 +2286,7 @@ function ProjectModal({
             </View>
 
             <TextInput
-              placeholder="Ej. App academica final"
+              placeholder="Ej. App académica final"
               placeholderTextColor={theme.muted}
               style={styles.field}
               value={title}
@@ -1995,7 +2454,7 @@ function ProjectDetailModal({
 
   const save = () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'El proyecto necesita un titulo.')
+      Alert.alert('Falta el título', 'El proyecto necesita un título.')
       return
     }
     onSave({
@@ -2029,9 +2488,9 @@ function ProjectDetailModal({
               </Pressable>
             </View>
 
-            <Text style={styles.formLabel}>Titulo</Text>
+            <Text style={styles.formLabel}>Título</Text>
             <TextInput style={styles.field} value={title} onChangeText={setTitle} />
-            <Text style={styles.formLabel}>Descripcion</Text>
+            <Text style={styles.formLabel}>Descripción</Text>
             <TextInput multiline style={[styles.field, styles.textArea]} value={description} onChangeText={setDescription} />
 
             <Text style={styles.formLabel}>Asignatura</Text>
@@ -2095,7 +2554,7 @@ function ProjectDetailModal({
               <Text style={styles.primaryActionText}>Guardar proyecto</Text>
             </Pressable>
             <Pressable style={styles.dangerAction} onPress={() => onDelete(project)}>
-              <Trash2 color="#ff7a8a" size={18} />
+              <Trash2 color={theme.danger} size={18} />
               <Text style={styles.dangerActionText}>Eliminar proyecto</Text>
             </Pressable>
           </View>
@@ -2106,6 +2565,7 @@ function ProjectDetailModal({
 }
 
 function TaskDetailModal({
+  courses,
   task,
   onClose,
   onDelete,
@@ -2115,6 +2575,7 @@ function TaskDetailModal({
   styles,
   theme,
 }: {
+  courses: string[]
   task: Task | null
   onClose: () => void
   onDelete: (task: Task) => void
@@ -2130,6 +2591,77 @@ function TaskDetailModal({
   const [time, setTime] = useState('')
   const [priority, setPriority] = useState<Priority>('Media')
 
+  const [course, setCourse] = useState('')
+  const [imageUri, setImageUri] = useState<string | null>(null)
+  const [audioUri, setAudioUri] = useState<string | null>(null)
+  const [reminder, setReminder] = useState<number>(1)
+
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showTimePicker, setShowTimePicker] = useState(false)
+
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY)
+  const recorderState = useAudioRecorderState(recorder)
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Da acceso a tu galería para adjuntar imágenes.')
+      return
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.5,
+    })
+    if (!result.canceled) setImageUri(result.assets[0].uri)
+  }
+
+  const toggleRecord = async () => {
+    if (recorderState.isRecording) {
+      await recorder.stop()
+      setAudioUri(recorder.uri)
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true })
+      return
+    }
+    const permission = await requestRecordingPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Activa el micrófono para grabar notas de voz.')
+      return
+    }
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true })
+    await recorder.prepareToRecordAsync()
+    recorder.record()
+  }
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false)
+    if (selectedDate) setDate(formatIso(selectedDate))
+  }
+
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false)
+    if (selectedTime) {
+      const hours = selectedTime.getHours().toString().padStart(2, '0')
+      const minutes = selectedTime.getMinutes().toString().padStart(2, '0')
+      setTime(`${hours}:${minutes}`)
+    }
+  }
+
+  const getParsedDate = () => {
+    const dStr = date || task?.date || formatIso(new Date())
+    const parts = dStr.split('-')
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+    }
+    return new Date()
+  }
+  const getParsedTime = () => {
+    const [h, m] = (time || task?.time || '08:00').split(':')
+    const d = new Date()
+    d.setHours(Number(h) || 8, Number(m) || 0, 0, 0)
+    return d
+  }
+
   useEffect(() => {
     if (!task) return
     setTitle(task.title)
@@ -2137,6 +2669,10 @@ function TaskDetailModal({
     setDate(task.date)
     setTime(task.time)
     setPriority(task.priority)
+    setCourse(task.course)
+    setImageUri(task.imageUri || null)
+    setAudioUri(task.audioUri || null)
+    setReminder(task.reminder ?? 1)
     if (voiceMode) speakText(taskToSpeech(task))
   }, [task])
 
@@ -2144,7 +2680,15 @@ function TaskDetailModal({
 
   const save = () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'La actividad necesita un titulo.')
+      Alert.alert('Falta el título', 'La actividad necesita un título.')
+      return
+    }
+
+    const finalDate = date.trim() || task.date
+    const finalTime = time.trim() || task.time
+    const errorMsg = validateDateTime(finalDate, finalTime)
+    if (errorMsg) {
+      Alert.alert('Formato incorrecto', errorMsg)
       return
     }
 
@@ -2152,9 +2696,13 @@ function TaskDetailModal({
       ...task,
       title: title.trim(),
       description: description.trim(),
-      date: date.trim() || task.date,
-      time: time.trim() || task.time,
+      date: finalDate,
+      time: finalTime,
       priority,
+      course,
+      imageUri,
+      audioUri,
+      reminder,
     })
     onClose()
   }
@@ -2165,21 +2713,21 @@ function TaskDetailModal({
         <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 16 }}>
                 <Text style={styles.eyebrow}>Detalle de actividad</Text>
                 <Text style={styles.modalTitle}>{task.title}</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10}>
-                <X color={theme.muted} size={22} />
+              <Pressable onPress={onClose} hitSlop={15} style={{ padding: 4 }}>
+                <X color={theme.muted} size={24} />
               </Pressable>
             </View>
 
             {task.imageUri && <RNImage source={{ uri: task.imageUri }} style={styles.detailImage} />}
 
-            <Text style={styles.formLabel}>Titulo</Text>
+            <Text style={styles.formLabel}>Título</Text>
             <TextInput style={styles.field} value={title} onChangeText={setTitle} />
 
-            <Text style={styles.formLabel}>Descripcion</Text>
+            <Text style={styles.formLabel}>Descripción</Text>
             <TextInput
               multiline
               style={[styles.field, styles.textArea]}
@@ -2190,11 +2738,35 @@ function TaskDetailModal({
             <View style={styles.formRow}>
               <View style={styles.formColumn}>
                 <Text style={styles.formLabel}>Fecha</Text>
-                <TextInput style={styles.field} value={date} onChangeText={setDate} />
+                <Pressable onPress={() => setShowDatePicker(true)}>
+                  <View pointerEvents="none">
+                    <TextInput style={styles.field} value={date} editable={false} />
+                  </View>
+                </Pressable>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={getParsedDate()}
+                    mode="date"
+                    display="default"
+                    onChange={onDateChange}
+                  />
+                )}
               </View>
               <View style={styles.formColumn}>
                 <Text style={styles.formLabel}>Hora</Text>
-                <TextInput style={styles.field} value={time} onChangeText={setTime} />
+                <Pressable onPress={() => setShowTimePicker(true)}>
+                  <View pointerEvents="none">
+                    <TextInput style={styles.field} value={time} editable={false} />
+                  </View>
+                </Pressable>
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={getParsedTime()}
+                    mode="time"
+                    display="default"
+                    onChange={onTimeChange}
+                  />
+                )}
               </View>
             </View>
 
@@ -2211,30 +2783,72 @@ function TaskDetailModal({
               ))}
             </View>
 
-            <View style={styles.detailInfoBox}>
-              <Text style={styles.cardMuted}>Materia</Text>
-              <Text style={styles.courseTitle}>{task.course}</Text>
-              <Text style={styles.cardMuted}>
-                Estado: {task.done ? 'Completada' : 'Pendiente'} | Recordatorio: {task.reminder ? 'Si' : 'No'}
-              </Text>
+            <Text style={styles.formLabel}>Asignatura</Text>
+            <View style={styles.chipRow}>
+              {courses.map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setCourse(item)}
+                  style={[styles.chip, course === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, course === item && { color: theme.accent }]}>{item}</Text>
+                </Pressable>
+              ))}
             </View>
 
+            <View style={[styles.formRow, { alignItems: 'center', marginTop: 10, justifyContent: 'space-between', marginBottom: 15 }]}>
+              <Text style={styles.formLabel}>Notificar con alarma local</Text>
+            </View>
+            <View style={[styles.chipRow, { marginBottom: 15 }]}>
+              {[0, 1, -1, 15, 30, 60, 120].map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setReminder(item)}
+                  style={[styles.chip, reminder === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, reminder === item && { color: theme.accent }]}>
+                    {item === 0 ? 'Sin aviso' : item === 1 ? 'Por defecto' : item === -1 ? 'Exacta' : `${item}m`}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.formLabel}>Adjuntos</Text>
             <View style={styles.attachmentRow}>
               <Pressable style={styles.attachmentButton} onPress={() => speakText(taskToSpeech(task))}>
                 <Play color={theme.accent} size={18} />
                 <Text style={styles.chipText}>Leer actividad</Text>
               </Pressable>
-              {task.audioUri && (
-                <Pressable style={styles.attachmentButton} onPress={() => onPlayAudio(task.audioUri!)}>
+
+              <Pressable style={styles.attachmentButton} onPress={pickImage}>
+                <ImageIcon color={imageUri ? theme.accent : theme.text} size={18} />
+                <Text style={[styles.chipText, imageUri && { color: theme.accent }]}>
+                  {imageUri ? 'Cambiar imagen' : 'Imagen'}
+                </Text>
+              </Pressable>
+
+              <Pressable style={styles.attachmentButton} onPress={toggleRecord}>
+                <Mic color={recorderState.isRecording ? theme.danger : audioUri ? theme.accent : theme.text} size={18} />
+                <Text
+                  style={[
+                    styles.chipText,
+                    recorderState.isRecording && { color: theme.danger },
+                    !recorderState.isRecording && audioUri && { color: theme.accent },
+                  ]}
+                >
+                  {recorderState.isRecording ? 'Grabando...' : audioUri ? 'Cambiar nota' : 'Nota de voz'}
+                </Text>
+              </Pressable>
+
+              {audioUri && (
+                <Pressable style={styles.attachmentButton} onPress={() => onPlayAudio(audioUri)}>
                   <Play color={theme.accent} size={18} />
-                  <Text style={styles.chipText}>Reproducir audio</Text>
                 </Pressable>
               )}
-              {task.imageUri && (
-                <View style={styles.attachmentButton}>
-                  <ImageIcon color={theme.accent} size={18} />
-                  <Text style={styles.chipText}>Imagen guardada</Text>
-                </View>
+              {imageUri && (
+                <Pressable style={styles.attachmentButton} onPress={() => setImageUri(null)}>
+                  <X color={theme.danger} size={18} />
+                </Pressable>
               )}
             </View>
 
@@ -2244,7 +2858,7 @@ function TaskDetailModal({
             </Pressable>
 
             <Pressable style={styles.dangerAction} onPress={() => onDelete(task)}>
-              <Trash2 color="#ff7a8a" size={18} />
+              <Trash2 color={theme.danger} size={18} />
               <Text style={styles.dangerActionText}>Eliminar actividad</Text>
             </Pressable>
           </View>
@@ -2254,9 +2868,10 @@ function TaskDetailModal({
   )
 }
 
-function TaskModal({
+export function TaskModal({
   courses,
   defaultDate,
+  initialDraft,
   onClose,
   onSubmit,
   styles,
@@ -2265,6 +2880,7 @@ function TaskModal({
 }: {
   courses: string[]
   defaultDate: string
+  initialDraft?: TaskDraft | null
   onClose: () => void
   onSubmit: (task: TaskDraft) => void
   styles: ReturnType<typeof createStyles>
@@ -2279,24 +2895,77 @@ function TaskModal({
   const [priority, setPriority] = useState<Priority>('Media')
   const [date, setDate] = useState(defaultDate)
   const [time, setTime] = useState('08:00')
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showTimePicker, setShowTimePicker] = useState(false)
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false)
+    if (selectedDate) setDate(formatIso(selectedDate))
+  }
+
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false)
+    if (selectedTime) {
+      const hours = selectedTime.getHours().toString().padStart(2, '0')
+      const minutes = selectedTime.getMinutes().toString().padStart(2, '0')
+      setTime(`${hours}:${minutes}`)
+    }
+  }
+
+  const getParsedDate = () => {
+    const dStr = date || defaultDate
+    const parts = dStr.split('-')
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+    }
+    return new Date()
+  }
+  const getParsedTime = () => {
+    const [h, m] = (time || '08:00').split(':')
+    const d = new Date()
+    d.setHours(Number(h) || 8, Number(m) || 0, 0, 0)
+    return d
+  }
+
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [audioUri, setAudioUri] = useState<string | null>(null)
+  const [reminder, setReminder] = useState<number>(1)
   const [isSavingMedia, setIsSavingMedia] = useState(false)
 
   useEffect(() => {
-    if (visible) setDate(defaultDate)
-  }, [defaultDate, visible])
-
-  useEffect(() => {
-    if (visible && courses.length && !courses.includes(course)) {
-      setCourse(courses[0])
+    if (visible) {
+      if (initialDraft) {
+        setTitle(initialDraft.title)
+        setDescription(initialDraft.description)
+        if (courses.includes(initialDraft.course)) {
+          setCourse(initialDraft.course)
+        } else if (courses.length) {
+          setCourse(courses[0])
+        }
+        setDate(initialDraft.date)
+        setTime(initialDraft.time)
+        setPriority(initialDraft.priority)
+        setReminder(initialDraft.reminder ?? 1)
+      } else {
+        setTitle('')
+        setDescription('')
+        setDate(defaultDate)
+        setTime('08:00')
+        setPriority('Media')
+        setReminder(1)
+        if (courses.length && !courses.includes(course)) {
+          setCourse(courses[0])
+        }
+      }
+      setImageUri(null)
+      setAudioUri(null)
     }
-  }, [course, courses, visible])
+  }, [visible, initialDraft, defaultDate, courses])
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Activa el permiso de galeria para adjuntar imagenes.')
+      Alert.alert('Permiso requerido', 'Activa el permiso de galería para adjuntar imágenes.')
       return
     }
 
@@ -2334,7 +3003,7 @@ function TaskModal({
 
     const permission = await requestRecordingPermissionsAsync()
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Activa el microfono para grabar notas de voz.')
+      Alert.alert('Permiso requerido', 'Activa el micrófono para grabar notas de voz.')
       return
     }
 
@@ -2345,7 +3014,15 @@ function TaskModal({
 
   const submit = () => {
     if (!title.trim()) {
-      Alert.alert('Falta el titulo', 'Escribe un titulo corto para guardar la tarea.')
+      Alert.alert('Falta el título', 'Escribe un título corto para guardar la tarea.')
+      return
+    }
+
+    const finalDate = date.trim() || defaultDate
+    const finalTime = time.trim() || '08:00'
+    const errorMsg = validateDateTime(finalDate, finalTime)
+    if (errorMsg) {
+      Alert.alert('Formato incorrecto', errorMsg)
       return
     }
 
@@ -2353,10 +3030,10 @@ function TaskModal({
       title: title.trim(),
       description: description.trim(),
       course,
-      date: date.trim() || defaultDate,
-      time: time.trim() || '08:00',
+      date: finalDate,
+      time: finalTime,
       priority,
-      reminder: true,
+      reminder,
       imageUri,
       audioUri,
     })
@@ -2364,6 +3041,7 @@ function TaskModal({
     setTitle('')
     setDescription('')
     setPriority('Media')
+    setReminder(1)
     setImageUri(null)
     setAudioUri(null)
     setTime('08:00')
@@ -2375,12 +3053,18 @@ function TaskModal({
         <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 16 }}>
                 <Text style={styles.eyebrow}>Nueva actividad</Text>
                 <Text style={styles.modalTitle}>Nueva tarea</Text>
               </View>
-              <Pressable onPress={onClose} hitSlop={10}>
-                <X color={theme.muted} size={22} />
+              <Pressable
+                onPress={onClose}
+                hitSlop={15}
+                style={{ padding: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar nueva tarea"
+              >
+                <X color={theme.muted} size={24} />
               </Pressable>
             </View>
 
@@ -2393,7 +3077,7 @@ function TaskModal({
             />
             <TextInput
               multiline
-              placeholder="Descripcion, enlaces o notas importantes"
+              placeholder="Descripción, enlaces o notas importantes"
               placeholderTextColor={theme.muted}
               style={[styles.field, styles.textArea]}
               value={description}
@@ -2416,23 +3100,47 @@ function TaskModal({
             <View style={styles.formRow}>
               <View style={styles.formColumn}>
                 <Text style={styles.formLabel}>Fecha</Text>
-                <TextInput
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={theme.muted}
-                  style={styles.field}
-                  value={date}
-                  onChangeText={setDate}
-                />
+                <Pressable onPress={() => setShowDatePicker(true)}>
+                  <View pointerEvents="none">
+                    <TextInput
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={theme.muted}
+                      style={styles.field}
+                      value={date}
+                      editable={false}
+                    />
+                  </View>
+                </Pressable>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={getParsedDate()}
+                    mode="date"
+                    display="default"
+                    onChange={onDateChange}
+                  />
+                )}
               </View>
               <View style={styles.formColumn}>
                 <Text style={styles.formLabel}>Hora</Text>
-                <TextInput
-                  placeholder="HH:mm"
-                  placeholderTextColor={theme.muted}
-                  style={styles.field}
-                  value={time}
-                  onChangeText={setTime}
-                />
+                <Pressable onPress={() => setShowTimePicker(true)}>
+                  <View pointerEvents="none">
+                    <TextInput
+                      placeholder="HH:mm"
+                      placeholderTextColor={theme.muted}
+                      style={styles.field}
+                      value={time}
+                      editable={false}
+                    />
+                  </View>
+                </Pressable>
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={getParsedTime()}
+                    mode="time"
+                    display="default"
+                    onChange={onTimeChange}
+                  />
+                )}
               </View>
             </View>
 
@@ -2445,6 +3153,21 @@ function TaskModal({
                   style={[styles.chip, priority === item && styles.chipActive]}
                 >
                   <Text style={[styles.chipText, priority === item && { color: theme.accent }]}>{item}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.formLabel}>Notificar con alarma local</Text>
+            <View style={[styles.chipRow, { marginBottom: 15 }]}>
+              {[0, 1, -1, 15, 30, 60, 120].map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setReminder(item)}
+                  style={[styles.chip, reminder === item && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, reminder === item && { color: theme.accent }]}>
+                    {item === 0 ? 'Sin aviso' : item === 1 ? 'Por defecto' : item === -1 ? 'Exacta' : `${item}m`}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -2487,13 +3210,21 @@ function TaskModal({
 
 function SectionTitle({
   action,
+  actionIcon: ActionIcon,
   onAction,
+  secondaryAction,
+  secondaryActionIcon: SecondaryActionIcon,
+  onSecondaryAction,
   styles,
   theme,
   title,
 }: {
   action?: string
+  actionIcon?: any
   onAction?: () => void
+  secondaryAction?: string
+  secondaryActionIcon?: any
+  onSecondaryAction?: () => void
   styles: ReturnType<typeof createStyles>
   theme: Theme
   title: string
@@ -2501,12 +3232,33 @@ function SectionTitle({
   return (
     <View style={styles.sectionTitle}>
       <Text style={styles.sectionHeading}>{title}</Text>
-      {action && (
-        <Pressable style={styles.sectionAction} onPress={onAction}>
-          <Text style={[styles.sectionActionText, { color: theme.accent }]}>{action}</Text>
-          <ChevronRight color={theme.accent} size={18} />
-        </Pressable>
-      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+        {(secondaryAction || SecondaryActionIcon) && (
+          <Pressable onPress={onSecondaryAction} hitSlop={15}>
+            {SecondaryActionIcon ? (
+              <View style={{ padding: 4 }}>
+                <SecondaryActionIcon color={theme.accent} size={25} />
+              </View>
+            ) : (
+              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '600' }}>{secondaryAction}</Text>
+            )}
+          </Pressable>
+        )}
+        {(action || ActionIcon) && (
+          <Pressable style={styles.sectionAction} onPress={onAction} hitSlop={15}>
+            {ActionIcon ? (
+              <View style={{ padding: 4 }}>
+                <ActionIcon color={theme.accent} size={27} />
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.sectionActionText, { color: theme.accent }]}>{action}</Text>
+                <ChevronRight color={theme.accent} size={18} />
+              </>
+            )}
+          </Pressable>
+        )}
+      </View>
     </View>
   )
 }
@@ -2530,7 +3282,11 @@ function ProjectCard({
   const progress = subtasks.length ? Math.round((done / subtasks.length) * 100) : project.progress
 
   return (
-    <Pressable onPress={onPress}>
+    <Pressable 
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Proyecto ${project.title}, ${progress}% completado`}
+    >
       <LinearGradient
         colors={theme.name === 'dark' ? ['rgba(255,255,255,0.16)', theme.card] : ['#ffffff', theme.card]}
         style={[styles.projectCard, large && styles.projectCardLarge]}
@@ -2591,9 +3347,17 @@ function TaskList({
           key={task.id}
           style={[styles.taskCard, task.done && styles.taskDone]}
           onPress={() => onOpenTask(task.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir tarea ${task.title}`}
         >
           <View style={styles.taskTopRow}>
-            <Pressable style={styles.taskCheck} onPress={() => toggleTask(task.id)}>
+            <Pressable 
+              style={styles.taskCheck} 
+              onPress={() => toggleTask(task.id)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: !!task.done }}
+              accessibilityLabel={`Marcar tarea ${task.title} como ${task.done ? 'pendiente' : 'completada'}`}
+            >
               {task.done && <Check color={theme.text} size={17} strokeWidth={3} />}
             </Pressable>
             <View style={styles.taskBody}>
@@ -2608,10 +3372,15 @@ function TaskList({
                 <Text style={styles.metaText}>
                   {task.date} - {task.time}
                 </Text>
-                {task.reminder && <Bell color={theme.soft} size={14} />}
+                {task.reminder !== 0 && <Bell color={theme.soft} size={14} />}
               </View>
             </View>
-            <Pressable style={styles.iconButton} onPress={() => deleteTask(task)}>
+            <Pressable 
+              style={styles.iconButton} 
+              onPress={() => deleteTask(task)}
+              accessibilityRole="button"
+              accessibilityLabel={`Eliminar tarea ${task.title}`}
+            >
               <Trash2 color={theme.soft} size={18} />
             </Pressable>
           </View>
@@ -2626,7 +3395,12 @@ function TaskList({
               </View>
             )}
             {task.audioUri && (
-              <Pressable style={styles.mediaBadge} onPress={() => playAudio(task.audioUri!)}>
+              <Pressable 
+                style={styles.mediaBadge} 
+                onPress={() => playAudio(task.audioUri!)}
+                accessibilityRole="button"
+                accessibilityLabel="Reproducir nota de voz"
+              >
                 <Play color={theme.accent} size={15} />
                 <Text style={styles.mediaBadgeText}>Reproducir voz</Text>
               </Pressable>
@@ -2685,7 +3459,7 @@ function MetricCard({
   )
 }
 
-function BottomTabs({
+export function BottomTabs({
   activeTab,
   setActiveTab,
   styles,
@@ -2696,6 +3470,10 @@ function BottomTabs({
   styles: ReturnType<typeof createStyles>
   theme: Theme
 }) {
+  const isKeyboardVisible = useKeyboardVisible()
+  const insets = useSafeAreaInsets()
+  const bottomInset = Math.max(insets.bottom, 16)
+
   const items = [
     { id: 'home' as const, label: 'Inicio', icon: Home },
     { id: 'calendar' as const, label: 'Calendario', icon: CalendarDays },
@@ -2704,12 +3482,26 @@ function BottomTabs({
     { id: 'settings' as const, label: 'Ajustes', icon: Settings },
   ]
 
+  if (isKeyboardVisible) return null
+
   return (
-    <View style={styles.bottomTabs}>
+    <View
+      style={[
+        styles.bottomTabs,
+        { height: 86 + bottomInset, paddingBottom: bottomInset }
+      ]}
+    >
       {items.map(({ id, label, icon: Icon }) => {
         const active = activeTab === id
         return (
-          <Pressable key={id} onPress={() => setActiveTab(id)} style={styles.tabButton}>
+          <Pressable 
+            key={id} 
+            onPress={() => setActiveTab(id)} 
+            style={styles.tabButton}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={`Pestaña ${label}`}
+          >
             <View style={[styles.tabIconWrap, active && styles.tabIconActive]}>
               <Icon color={active ? theme.accent : theme.muted} size={23} />
             </View>
@@ -2719,6 +3511,55 @@ function BottomTabs({
       })}
     </View>
   )
+}
+
+const cancelTaskNotification = async (taskId: string) => {
+  await Notifications.cancelScheduledNotificationAsync(taskId).catch(() => {})
+}
+
+const syncTaskNotification = async (task: Task, offsetMinutes: number) => {
+  await cancelTaskNotification(task.id)
+  if (task.done || task.reminder === 0) return
+
+  const parts = task.date.split('-')
+  const timeParts = task.time.split(':')
+  if (parts.length !== 3 || timeParts.length !== 2) return
+
+  const targetDate = new Date(
+    Number(parts[0]),
+    Number(parts[1]) - 1,
+    Number(parts[2]),
+    Number(timeParts[0]),
+    Number(timeParts[1]),
+  )
+
+  let offset = 0
+  if (task.reminder === 1) offset = offsetMinutes
+  else if (task.reminder === -1) offset = 0
+  else if (task.reminder > 1) offset = task.reminder
+
+  targetDate.setMinutes(targetDate.getMinutes() - offset)
+
+  if (targetDate.getTime() > Date.now()) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: task.id,
+      content: {
+        title: `Recordatorio: ${task.title}`,
+        body: `Tienes una tarea de ${task.course} pendiente.`,
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: targetDate,
+      },
+    }).catch(() => {})
+  }
+}
+
+const syncAllTaskNotifications = async (currentTasks: Task[], offsetMinutes: number) => {
+  for (const task of currentTasks) {
+    await syncTaskNotification(task, offsetMinutes)
+  }
 }
 
 function createStyles(theme: Theme, fontScale: FontScale) {
@@ -2749,7 +3590,6 @@ function createStyles(theme: Theme, fontScale: FontScale) {
     screen: {
       paddingHorizontal: 22,
       paddingTop: 26,
-      paddingBottom: 132,
     },
     header: {
       alignItems: 'flex-start',
@@ -2790,7 +3630,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderColor: theme.accent,
       borderRadius: 30,
       borderWidth: 1,
-      height: 58,
+      minHeight: 58,
       justifyContent: 'center',
       width: 58,
     },
@@ -2822,7 +3662,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.surface,
       borderRadius: 16,
-      height: 38,
+      minHeight: 38,
       justifyContent: 'center',
       width: 38,
     },
@@ -2851,6 +3691,8 @@ function createStyles(theme: Theme, fontScale: FontScale) {
     sectionTitle: {
       alignItems: 'center',
       flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
       justifyContent: 'space-between',
       marginBottom: 17,
     },
@@ -2964,7 +3806,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderColor: theme.accent,
       borderRadius: 19,
       borderWidth: 2,
-      height: 38,
+      minHeight: 38,
       justifyContent: 'center',
       width: 38,
     },
@@ -3014,7 +3856,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.surface,
       borderRadius: 16,
-      height: 34,
+      minHeight: 34,
       justifyContent: 'center',
       width: 34,
     },
@@ -3059,7 +3901,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       backgroundColor: 'rgba(255,122,138,0.14)',
     },
     priorityHighText: {
-      color: '#ff7a8a',
+      color: theme.danger,
     },
     priorityMid: {
       backgroundColor: 'rgba(242,191,101,0.14)',
@@ -3071,7 +3913,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       backgroundColor: 'rgba(99,216,173,0.14)',
     },
     priorityLowText: {
-      color: '#63d8ad',
+      color: theme.success,
     },
     emptyState: {
       alignItems: 'center',
@@ -3151,7 +3993,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.accentSoft,
       borderRadius: 16,
-      height: 44,
+      minHeight: 44,
       justifyContent: 'center',
       width: 44,
     },
@@ -3177,6 +4019,18 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       flexDirection: 'row',
       gap: 14,
       padding: 17,
+    },
+    settingsSection: {
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      borderRadius: 26,
+      borderWidth: 1,
+      padding: 17,
+    },
+    settingsHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 14,
     },
     settingsCopy: {
       flex: 1,
@@ -3242,7 +4096,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.accent,
       borderRadius: 17,
-      height: 48,
+      minHeight: 48,
       justifyContent: 'center',
       width: 48,
     },
@@ -3314,7 +4168,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       minHeight: 52,
     },
     dangerActionText: {
-      color: '#ff7a8a',
+      color: theme.danger,
       fontFamily,
       fontSize: fs(14),
       fontWeight: '800',
@@ -3325,9 +4179,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderTopWidth: 1,
       bottom: 0,
       flexDirection: 'row',
-      height: 102,
       left: 0,
-      paddingBottom: 16,
       paddingHorizontal: 12,
       paddingTop: 10,
       position: 'absolute',
@@ -3342,7 +4194,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
     tabIconWrap: {
       alignItems: 'center',
       borderRadius: 19,
-      height: 38,
+      minHeight: 38,
       justifyContent: 'center',
       width: 46,
     },
@@ -3359,8 +4211,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       alignItems: 'center',
       backgroundColor: theme.accent,
       borderRadius: 33,
-      bottom: 121,
-      height: 66,
+      minHeight: 66,
       justifyContent: 'center',
       position: 'absolute',
       right: 19,
@@ -3450,9 +4301,11 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       fontFamily,
       fontSize: fs(12),
       fontWeight: '800',
+      textAlign: 'center',
     },
     attachmentRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 9,
     },
     attachmentButton: {
@@ -3461,11 +4314,14 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderColor: theme.border,
       borderRadius: 16,
       borderWidth: 1,
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: '30%',
       flexDirection: 'row',
       gap: 6,
       justifyContent: 'center',
       minHeight: 48,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
     },
     previewImage: {
       borderRadius: 18,
