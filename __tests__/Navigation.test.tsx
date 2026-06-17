@@ -92,7 +92,18 @@ describe('Navigation', () => {
       getFirstAsync: jest.fn((query: string) =>
         Promise.resolve(query.includes('COUNT(*)') ? { count: 1 } : null),
       ),
-      getAllAsync: jest.fn(() => Promise.resolve([])),
+      getAllAsync: jest.fn((query: string) =>
+        Promise.resolve(
+          query.includes('FROM subjects')
+            ? [{
+                id: 'subject-1',
+                userId: 'guest',
+                name: 'IHC',
+                createdAt: '2026-01-01T00:00:00.000Z',
+              }]
+            : [],
+        ),
+      ),
     };
     jest.mocked(SQLite.openDatabaseAsync).mockResolvedValueOnce(database as never);
 
@@ -116,6 +127,25 @@ describe('Navigation', () => {
     expect(queryByText('Nueva actividad')).toBeNull();
     expect(await findByText('Tarea guardada al instante')).toBeTruthy();
     expect(calendarTab.props.accessibilityState).toEqual({ selected: true });
+  });
+
+  it('requires a subject before opening the new-task modal', async () => {
+    const database = {
+      execAsync: jest.fn(() => Promise.resolve()),
+      runAsync: jest.fn(() => Promise.resolve()),
+      getFirstAsync: jest.fn((query: string) =>
+        Promise.resolve(query.includes('COUNT(*)') ? { count: 1 } : null),
+      ),
+      getAllAsync: jest.fn(() => Promise.resolve([])),
+    };
+    jest.mocked(SQLite.openDatabaseAsync).mockResolvedValueOnce(database as never);
+
+    const { findByLabelText, findByPlaceholderText, queryByPlaceholderText } = render(<App />);
+
+    fireEvent.press(await findByLabelText('Añadir nueva tarea'));
+
+    expect(queryByPlaceholderText('Ej. Subir informe de usabilidad')).toBeNull();
+    expect(await findByPlaceholderText('Ej. Arquitectura de Software')).toBeTruthy();
   });
 
   it('reflects an edited task before the database write finishes', async () => {

@@ -1377,6 +1377,22 @@ export default function App() {
   const [editingSubjectName, setEditingSubjectName] = useState<string | null>(null)
   const [isEditingSubjectsApp, setIsEditingSubjectsApp] = useState(false)
 
+  const openTaskModal = (draft?: TaskDraft | null) => {
+    if (!subjectNames.length) {
+      Alert.alert(
+        'Crea una asignatura primero',
+        `La cuenta ${currentUser.fullName} todavía no tiene asignaturas. Agrega una asignatura antes de crear tareas.`,
+      )
+      setAssistantTaskDraft(null)
+      setActiveTab('projects')
+      setSubjectModalVisible(true)
+      return
+    }
+
+    if (draft) setAssistantTaskDraft(draft)
+    setModalVisible(true)
+  }
+
   const switchUser = async (userId: string) => {
     const db = dbRef.current
     const nextUser = users.find((user) => user.id === userId)
@@ -1536,6 +1552,15 @@ export default function App() {
   const addTask = async (input: TaskDraft) => {
     const db = dbRef.current
     if (!db) return
+    if (!subjectNames.length || !subjectNames.includes(input.course)) {
+      Alert.alert(
+        'Asignatura requerida',
+        'Selecciona o crea una asignatura de esta cuenta antes de guardar la tarea.',
+      )
+      setActiveTab('projects')
+      setSubjectModalVisible(true)
+      return
+    }
 
     const task: Task = {
       ...input,
@@ -1786,8 +1811,7 @@ export default function App() {
                 voiceMode={voiceMode}
                 subjects={subjectNames}
                 onCreateTask={async (draft) => {
-                  setAssistantTaskDraft(draft)
-                  setModalVisible(true)
+                  openTaskModal(draft)
                 }}
               />
             )}
@@ -1816,7 +1840,7 @@ export default function App() {
           </ScrollView>
 
           {(!isEditingSubjectsApp || activeTab !== 'projects') && (
-            <Fab onPress={() => setModalVisible(true)} styles={styles} />
+            <Fab onPress={() => openTaskModal()} styles={styles} />
           )}
 
           <BottomTabs
@@ -2868,15 +2892,19 @@ function ProjectModal({
 
             <Text style={styles.formLabel}>Asignatura</Text>
             <View style={styles.chipRow}>
-              {courses.map((item) => (
-                <Pressable
-                  key={item}
-                  onPress={() => setCourse(item)}
-                  style={[styles.chip, course === item && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, course === item && { color: theme.accent }]}>{item}</Text>
-                </Pressable>
-              ))}
+              {courses.length ? (
+                courses.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => setCourse(item)}
+                    style={[styles.chip, course === item && styles.chipActive]}
+                  >
+                    <Text style={[styles.chipText, course === item && { color: theme.accent }]}>{item}</Text>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={styles.cardMuted}>Crea una asignatura en Proyectos antes de guardar tareas.</Text>
+              )}
             </View>
 
             <View style={styles.formRow}>
@@ -3460,7 +3488,7 @@ export function TaskModal({
   const recorderState = useAudioRecorderState(recorder)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [course, setCourse] = useState(courses[0] ?? 'General')
+  const [course, setCourse] = useState(courses[0] ?? '')
   const [priority, setPriority] = useState<Priority>('Media')
   const [date, setDate] = useState(defaultDate)
   const [time, setTime] = useState('08:00')
@@ -3510,6 +3538,8 @@ export function TaskModal({
           setCourse(initialDraft.course)
         } else if (courses.length) {
           setCourse(courses[0])
+        } else {
+          setCourse('')
         }
         setDate(initialDraft.date)
         setTime(initialDraft.time)
@@ -3524,6 +3554,8 @@ export function TaskModal({
         setReminder(1)
         if (courses.length && !courses.includes(course)) {
           setCourse(courses[0])
+        } else if (!courses.length) {
+          setCourse('')
         }
       }
       setImageUri(null)
@@ -3584,6 +3616,11 @@ export function TaskModal({
   const submit = () => {
     if (!title.trim()) {
       Alert.alert('Falta el título', 'Escribe un título corto para guardar la tarea.')
+      return
+    }
+
+    if (!courses.length || !courses.includes(course)) {
+      Alert.alert('Asignatura requerida', 'Crea o selecciona una asignatura antes de guardar la tarea.')
       return
     }
 
