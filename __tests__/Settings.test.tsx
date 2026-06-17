@@ -33,6 +33,17 @@ describe('Settings and Accessibility', () => {
     resetData: jest.fn(),
     imageCount: 2,
     audioCount: 3,
+    user: {
+      id: 'student-1',
+      fullName: 'Ana Maria Lopez',
+      email: 'ana@universidad.edu',
+      career: 'Ingenieria de Software',
+      createdAt: '2026-06-17T00:00:00.000Z',
+      updatedAt: '2026-06-17T00:00:00.000Z',
+      isActive: true,
+    },
+    userCount: 1,
+    onManageUsers: jest.fn(),
   };
 
   beforeEach(() => {
@@ -44,6 +55,7 @@ describe('Settings and Accessibility', () => {
 
     expect(getByText('Modo de apariencia')).toBeTruthy();
     expect(getByText('Accesibilidad')).toBeTruthy();
+    expect(getByText('Cuenta')).toBeTruthy();
   });
 
   it('changes to the dark theme with the appearance switch', () => {
@@ -82,5 +94,14 @@ describe('Settings and Accessibility', () => {
     fireEvent.press(getByText('Grande'));
 
     expect(setFontScale).toHaveBeenCalledWith(1.15);
+  });
+
+  it('opens the account editor from settings', () => {
+    const onManageUsers = jest.fn();
+    const { getByText } = render(<SettingsView {...defaultProps} onManageUsers={onManageUsers} />);
+
+    fireEvent.press(getByText('Cuenta activa: Ana Maria Lopez'));
+
+    expect(onManageUsers).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
-import App, { getGreeting } from '../App';
+import App, { getGreeting, getInitials } from '../App';
 
 describe('App Initialization', () => {
   it('renders the greeting after initialization', async () => {
@@ -46,5 +46,10 @@ describe('App Initialization', () => {
 
   it('uses the evening greeting from 19:00', () => {
     expect(getGreeting(new Date(2026, 5, 13, 21))).toBe('Buenas noches');
+  });
+
+  it('creates initials from the student name', () => {
+    expect(getInitials('Ana Maria Lopez')).toBe('AM');
+    expect(getInitials('')).toBe('E');
   });
 });

@@ -41,6 +41,7 @@ import {
   Settings,
   Sun,
   Trash2,
+  User,
   X,
 } from 'lucide-react-native'
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
@@ -99,12 +100,22 @@ Notifications.setNotificationHandler({
 })
 
 type Tab = 'home' | 'calendar' | 'projects' | 'assistant' | 'settings'
-type ThemeName = 'dark' | 'light' | 'dark_colorblind' | 'light_colorblind'
+type ThemeName =
+  | 'dark'
+  | 'light'
+  | 'dark_colorblind'
+  | 'light_colorblind'
+  | 'dark_colorblind_blue'
+  | 'light_colorblind_blue'
+  | 'dark_colorblind_amber'
+  | 'light_colorblind_amber'
+type ColorblindPalette = 'blue' | 'amber'
 type Priority = 'Alta' | 'Media' | 'Baja'
 type FontScale = 1 | 1.15 | 1.3
 
 type Task = {
   id: string
+  userId: string
   title: string
   description: string
   course: string
@@ -126,7 +137,7 @@ type TaskRow = Omit<Task, 'done' | 'reminder'> & {
 type SubjectRow = Subject
 type ProjectRow = Project
 
-type TaskDraft = Omit<Task, 'id' | 'done' | 'createdAt'>
+type TaskDraft = Omit<Task, 'id' | 'userId' | 'done' | 'createdAt'>
 
 type AssistantResult = {
   answer: string
@@ -135,6 +146,7 @@ type AssistantResult = {
 
 type Project = {
   id: string
+  userId: string
   title: string
   course: string
   due: string
@@ -158,11 +170,28 @@ type ProjectSubtaskRow = Omit<ProjectSubtask, 'done'> & {
 
 type Subject = {
   id: string
+  userId: string
   name: string
   createdAt: string
 }
 
-type ProjectDraft = Omit<Project, 'id' | 'createdAt'>
+type UserAccount = {
+  id: string
+  fullName: string
+  email: string
+  career: string
+  createdAt: string
+  updatedAt: string
+  isActive: boolean
+}
+
+type UserAccountRow = Omit<UserAccount, 'isActive'> & {
+  isActive: number
+}
+
+type UserAccountDraft = Pick<UserAccount, 'fullName' | 'email' | 'career'>
+
+type ProjectDraft = Omit<Project, 'id' | 'userId' | 'createdAt'>
 type ProjectSubtaskDraft = Omit<ProjectSubtask, 'id' | 'createdAt'>
 
 type Theme = {
@@ -209,11 +238,11 @@ const themes: Record<ThemeName, Theme> = {
     muted: '#666b78',
     soft: '#858b98',
     border: 'rgba(16,24,40,0.12)',
-    accent: '#1c93ad',
-    accentSoft: 'rgba(28,147,173,0.14)',
+    accent: '#0f6c7e',
+    accentSoft: 'rgba(15,108,126,0.14)',
     tab: 'rgba(247,248,251,0.96)',
-    danger: '#e63946',
-    success: '#2a9d8f',
+    danger: '#c92a2a',
+    success: '#087f6f',
   },
   dark_colorblind: {
     name: 'dark_colorblind',
@@ -225,11 +254,11 @@ const themes: Record<ThemeName, Theme> = {
     muted: '#9da0ab',
     soft: '#727783',
     border: 'rgba(255,255,255,0.13)',
-    accent: '#39bfd1',
-    accentSoft: 'rgba(57,191,209,0.16)',
+    accent: '#56b4e9',
+    accentSoft: 'rgba(86,180,233,0.18)',
     tab: 'rgba(5,6,8,0.94)',
-    danger: '#ffb347',
-    success: '#5aa9e6',
+    danger: '#f0a202',
+    success: '#cc79a7',
   },
   light_colorblind: {
     name: 'light_colorblind',
@@ -241,12 +270,87 @@ const themes: Record<ThemeName, Theme> = {
     muted: '#666b78',
     soft: '#858b98',
     border: 'rgba(16,24,40,0.12)',
-    accent: '#1c93ad',
-    accentSoft: 'rgba(28,147,173,0.14)',
+    accent: '#0072b2',
+    accentSoft: 'rgba(0,114,178,0.13)',
     tab: 'rgba(247,248,251,0.96)',
-    danger: '#e07a5f',
-    success: '#3d5a80',
+    danger: '#b65300',
+    success: '#6f4e9b',
   },
+  dark_colorblind_blue: {
+    name: 'dark_colorblind_blue',
+    bg: '#050608',
+    card: 'rgba(26, 28, 31, 0.86)',
+    surface: 'rgba(255,255,255,0.055)',
+    surfaceStrong: 'rgba(255,255,255,0.09)',
+    text: '#f6f7fb',
+    muted: '#9da0ab',
+    soft: '#727783',
+    border: 'rgba(255,255,255,0.13)',
+    accent: '#56b4e9',
+    accentSoft: 'rgba(86,180,233,0.18)',
+    tab: 'rgba(5,6,8,0.94)',
+    danger: '#f0a202',
+    success: '#cc79a7',
+  },
+  light_colorblind_blue: {
+    name: 'light_colorblind_blue',
+    bg: '#f7f8fb',
+    card: 'rgba(255,255,255,0.94)',
+    surface: 'rgba(255,255,255,0.72)',
+    surfaceStrong: 'rgba(255,255,255,0.96)',
+    text: '#11141a',
+    muted: '#666b78',
+    soft: '#858b98',
+    border: 'rgba(16,24,40,0.12)',
+    accent: '#0072b2',
+    accentSoft: 'rgba(0,114,178,0.13)',
+    tab: 'rgba(247,248,251,0.96)',
+    danger: '#b65300',
+    success: '#6f4e9b',
+  },
+  dark_colorblind_amber: {
+    name: 'dark_colorblind_amber',
+    bg: '#050608',
+    card: 'rgba(26, 28, 31, 0.88)',
+    surface: 'rgba(255,255,255,0.055)',
+    surfaceStrong: 'rgba(255,255,255,0.095)',
+    text: '#f7f7fa',
+    muted: '#a4a7b2',
+    soft: '#7d838f',
+    border: 'rgba(255,255,255,0.14)',
+    accent: '#e6c229',
+    accentSoft: 'rgba(230,194,41,0.17)',
+    tab: 'rgba(5,6,8,0.94)',
+    danger: '#f28e2b',
+    success: '#59a14f',
+  },
+  light_colorblind_amber: {
+    name: 'light_colorblind_amber',
+    bg: '#f8f8fb',
+    card: 'rgba(255,255,255,0.95)',
+    surface: 'rgba(255,255,255,0.74)',
+    surfaceStrong: 'rgba(255,255,255,0.97)',
+    text: '#11141a',
+    muted: '#626875',
+    soft: '#7d8492',
+    border: 'rgba(16,24,40,0.13)',
+    accent: '#8a5a00',
+    accentSoft: 'rgba(138,90,0,0.13)',
+    tab: 'rgba(248,248,251,0.96)',
+    danger: '#a14b00',
+    success: '#3f6f36',
+  },
+}
+
+const gradientStarts: Record<ThemeName, string> = {
+  dark: '#08353b',
+  light: '#d8f1f5',
+  dark_colorblind: '#102a43',
+  light_colorblind: '#dbeafe',
+  dark_colorblind_blue: '#102a43',
+  light_colorblind_blue: '#dbeafe',
+  dark_colorblind_amber: '#342700',
+  light_colorblind_amber: '#f4e7ba',
 }
 
 const starterSubjectNames = [
@@ -260,17 +364,23 @@ const starterSubjectNames = [
 const weekLabels = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
 
 const projectAccents = ['#5dd6cf', '#8bb7ff', '#f2bf65', '#63d8ad', '#ff7a8a', '#b8a7ff']
+const projectAccentsColorblindBlueDark = ['#56b4e9', '#e69f00', '#cc79a7', '#80b1d3', '#f0e442', '#b3b3b3']
+const projectAccentsColorblindBlueLight = ['#0072b2', '#b65300', '#8f4f7f', '#005f8f', '#756800', '#666666']
+const projectAccentsColorblindAmberDark = ['#e6c229', '#7aa6d9', '#f28e2b', '#74b66b', '#d49ac2', '#c49a83']
+const projectAccentsColorblindAmberLight = ['#8a5a00', '#3d6591', '#a14b00', '#3f6f36', '#805b80', '#76513e']
 
-const starterSubjects = (): Subject[] =>
+const starterSubjects = (userId = guestUserId): Subject[] =>
   starterSubjectNames.map((name) => ({
     id: makeId(),
+    userId,
     name,
     createdAt: new Date().toISOString(),
   }))
 
-const starterProjects = (): Project[] => [
+const starterProjects = (userId = guestUserId): Project[] => [
   {
-    id: 'projectx',
+    id: `${userId}-projectx`,
+    userId,
     title: 'ProjectX',
     course: 'Interacción Humano-Computador',
     due: 'Entrega parcial',
@@ -280,7 +390,8 @@ const starterProjects = (): Project[] => [
     createdAt: new Date().toISOString(),
   },
   {
-    id: 'capm',
+    id: `${userId}-capm`,
+    userId,
     title: 'Certificación CAPM',
     course: 'Preparación profesional',
     due: 'Simulacro viernes',
@@ -291,38 +402,38 @@ const starterProjects = (): Project[] => [
   },
 ]
 
-const starterProjectSubtasks = (): ProjectSubtask[] => [
+const starterProjectSubtasks = (userId = guestUserId): ProjectSubtask[] => [
   {
     id: makeId(),
-    projectId: 'projectx',
+    projectId: `${userId}-projectx`,
     title: 'Cerrar alcance y criterios de evaluación',
     done: true,
     createdAt: new Date().toISOString(),
   },
   {
     id: makeId(),
-    projectId: 'projectx',
+    projectId: `${userId}-projectx`,
     title: 'Preparar prototipo navegable',
     done: true,
     createdAt: new Date().toISOString(),
   },
   {
     id: makeId(),
-    projectId: 'projectx',
+    projectId: `${userId}-projectx`,
     title: 'Documentar hallazgos de la prueba',
     done: false,
     createdAt: new Date().toISOString(),
   },
   {
     id: makeId(),
-    projectId: 'capm',
+    projectId: `${userId}-capm`,
     title: 'Resolver simulacro cronometrado',
     done: false,
     createdAt: new Date().toISOString(),
   },
   {
     id: makeId(),
-    projectId: 'capm',
+    projectId: `${userId}-capm`,
     title: 'Repasar dominios con menor puntaje',
     done: false,
     createdAt: new Date().toISOString(),
@@ -332,6 +443,7 @@ const starterProjectSubtasks = (): ProjectSubtask[] => [
 const dbName = 'academic_hub.db'
 const mediaFolder = `${FileSystem.documentDirectory ?? ''}academic-hub-media/`
 const fontScales: FontScale[] = [1, 1.15, 1.3]
+const guestUserId = 'guest'
 
 const formatIso = (date: Date) => {
   const yyyy = date.getFullYear()
@@ -363,9 +475,62 @@ const offsetDate = (days: number) => {
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-const starterTasks = (): Task[] => [
+const makeDefaultUser = (): UserAccount => {
+  const now = new Date().toISOString()
+  return {
+    id: guestUserId,
+    fullName: 'Invitado',
+    email: '',
+    career: '',
+    createdAt: now,
+    updatedAt: now,
+    isActive: true,
+  }
+}
+
+export const getInitials = (name: string) => {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (parts.length === 0) return 'E'
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('')
+}
+
+const isColorblindThemeName = (themeName: ThemeName) => themeName.includes('colorblind')
+
+const getColorblindPalette = (themeName: ThemeName): ColorblindPalette =>
+  themeName.includes('amber') ? 'amber' : 'blue'
+
+const buildThemeName = (isDark: boolean, palette?: ColorblindPalette): ThemeName => {
+  if (!palette) return isDark ? 'dark' : 'light'
+  return `${isDark ? 'dark' : 'light'}_colorblind_${palette}` as ThemeName
+}
+
+const getProjectAccentPalette = (theme: Theme) => {
+  if (!theme.name.includes('colorblind')) return projectAccents
+  const isDark = theme.name.startsWith('dark')
+  if (theme.name.includes('amber')) {
+    return isDark ? projectAccentsColorblindAmberDark : projectAccentsColorblindAmberLight
+  }
+  return isDark ? projectAccentsColorblindBlueDark : projectAccentsColorblindBlueLight
+}
+
+const getProjectAccentForTheme = (accent: string, theme: Theme) => {
+  const palette = getProjectAccentPalette(theme)
+  if (palette === projectAccents) return accent
+  const index = projectAccents.findIndex((item) => item.toLowerCase() === accent.toLowerCase())
+  return palette[index >= 0 ? index : 0]
+}
+
+const starterTasks = (userId = guestUserId): Task[] => [
   {
     id: makeId(),
+    userId,
     title: 'Aprobar cronograma de Actívate',
     description: 'Revisar fechas, responsables y entregables antes de enviarlo.',
     course: 'Gestión de Proyectos',
@@ -380,6 +545,7 @@ const starterTasks = (): Task[] => [
   },
   {
     id: makeId(),
+    userId,
     title: 'Revisar queries en SQL Server',
     description: 'Validar joins, filtros y nombres de columnas para el reporte.',
     course: 'Base de Datos',
@@ -394,6 +560,7 @@ const starterTasks = (): Task[] => [
   },
   {
     id: makeId(),
+    userId,
     title: 'Grabar resumen de metodología',
     description: 'Explicar hallazgos principales de la prueba de usabilidad.',
     course: 'Investigación',
@@ -410,6 +577,7 @@ const starterTasks = (): Task[] => [
 
 const rowToTask = (row: TaskRow): Task => ({
   ...row,
+  userId: row.userId || guestUserId,
   done: row.done === 1,
   reminder: Number.isFinite(Number(row.reminder)) ? Number(row.reminder) : 0,
 })
@@ -456,6 +624,7 @@ async function setupDatabase(db: SQLite.SQLiteDatabase) {
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY NOT NULL,
+      userId TEXT NOT NULL DEFAULT 'guest',
       title TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       course TEXT NOT NULL,
@@ -474,11 +643,23 @@ async function setupDatabase(db: SQLite.SQLiteDatabase) {
     );
     CREATE TABLE IF NOT EXISTS subjects (
       id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL UNIQUE,
-      createdAt TEXT NOT NULL
+      userId TEXT NOT NULL DEFAULT 'guest',
+      name TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      UNIQUE(userId, name)
+    );
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY NOT NULL,
+      fullName TEXT NOT NULL,
+      email TEXT NOT NULL DEFAULT '',
+      career TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      isActive INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY NOT NULL,
+      userId TEXT NOT NULL DEFAULT 'guest',
       title TEXT NOT NULL,
       course TEXT NOT NULL,
       due TEXT NOT NULL,
@@ -496,11 +677,45 @@ async function setupDatabase(db: SQLite.SQLiteDatabase) {
       FOREIGN KEY(projectId) REFERENCES projects(id) ON DELETE CASCADE
     );
   `)
+  await migrateUserScopedTables(db)
 }
 
-async function loadTasks(db: SQLite.SQLiteDatabase) {
+async function execIgnoringMigrationError(db: SQLite.SQLiteDatabase, sql: string) {
+  try {
+    await db.execAsync(sql)
+  } catch {
+  }
+}
+
+async function migrateUserScopedTables(db: SQLite.SQLiteDatabase) {
+  await execIgnoringMigrationError(db, "ALTER TABLE tasks ADD COLUMN userId TEXT NOT NULL DEFAULT 'guest';")
+  await execIgnoringMigrationError(db, "ALTER TABLE projects ADD COLUMN userId TEXT NOT NULL DEFAULT 'guest';")
+  await execIgnoringMigrationError(db, "ALTER TABLE subjects ADD COLUMN userId TEXT NOT NULL DEFAULT 'guest';")
+  await db.execAsync(`
+    INSERT OR IGNORE INTO users (id, fullName, email, career, createdAt, updatedAt, isActive)
+    VALUES ('guest', 'Invitado', '', '', datetime('now'), datetime('now'), 1);
+    UPDATE tasks SET userId = 'guest' WHERE userId IS NULL OR userId = '';
+    UPDATE projects SET userId = 'guest' WHERE userId IS NULL OR userId = '';
+    UPDATE subjects SET userId = 'guest' WHERE userId IS NULL OR userId = '';
+    DROP TABLE IF EXISTS subjects_next;
+    CREATE TABLE subjects_next (
+      id TEXT PRIMARY KEY NOT NULL,
+      userId TEXT NOT NULL DEFAULT 'guest',
+      name TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      UNIQUE(userId, name)
+    );
+    INSERT OR IGNORE INTO subjects_next (id, userId, name, createdAt)
+      SELECT id, userId, name, createdAt FROM subjects;
+    DROP TABLE subjects;
+    ALTER TABLE subjects_next RENAME TO subjects;
+  `)
+}
+
+async function loadTasks(db: SQLite.SQLiteDatabase, userId: string) {
   const rows = await db.getAllAsync<TaskRow>(
-    'SELECT * FROM tasks ORDER BY date ASC, time ASC, createdAt DESC;',
+    'SELECT * FROM tasks WHERE userId = ? ORDER BY date ASC, time ASC, createdAt DESC;',
+    userId,
   )
   return rows.map(rowToTask)
 }
@@ -508,9 +723,10 @@ async function loadTasks(db: SQLite.SQLiteDatabase) {
 async function insertTask(db: SQLite.SQLiteDatabase, task: Task) {
   await db.runAsync(
     `INSERT INTO tasks
-      (id, title, description, course, date, time, priority, done, reminder, imageUri, audioUri, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      (id, userId, title, description, course, date, time, priority, done, reminder, imageUri, audioUri, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     task.id,
+    task.userId,
     task.title,
     task.description,
     task.course,
@@ -525,29 +741,90 @@ async function insertTask(db: SQLite.SQLiteDatabase, task: Task) {
   )
 }
 
-async function loadSubjects(db: SQLite.SQLiteDatabase) {
-  return db.getAllAsync<SubjectRow>('SELECT * FROM subjects ORDER BY name ASC;')
+async function loadSubjects(db: SQLite.SQLiteDatabase, userId: string) {
+  return db.getAllAsync<SubjectRow>('SELECT * FROM subjects WHERE userId = ? ORDER BY name ASC;', userId)
 }
 
 async function insertSubject(db: SQLite.SQLiteDatabase, subject: Subject) {
   await db.runAsync(
-    'INSERT OR IGNORE INTO subjects (id, name, createdAt) VALUES (?, ?, ?);',
+    'INSERT OR IGNORE INTO subjects (id, userId, name, createdAt) VALUES (?, ?, ?, ?);',
     subject.id,
+    subject.userId,
     subject.name,
     subject.createdAt,
   )
 }
 
-async function loadProjects(db: SQLite.SQLiteDatabase) {
-  return db.getAllAsync<ProjectRow>('SELECT * FROM projects ORDER BY createdAt DESC;')
+const rowToUserAccount = (row: UserAccountRow): UserAccount => ({
+  ...row,
+  isActive: row.isActive === 1,
+})
+
+async function loadUsers(db: SQLite.SQLiteDatabase) {
+  const rows = await db.getAllAsync<UserAccountRow>(
+    'SELECT * FROM users ORDER BY isActive DESC, updatedAt DESC, fullName ASC;',
+  )
+  return rows.map(rowToUserAccount)
+}
+
+async function insertUserAccount(db: SQLite.SQLiteDatabase, user: UserAccount) {
+  await db.runAsync(
+    `INSERT INTO users
+      (id, fullName, email, career, createdAt, updatedAt, isActive)
+      VALUES (?, ?, ?, ?, ?, ?, ?);`,
+    user.id,
+    user.fullName,
+    user.email,
+    user.career,
+    user.createdAt,
+    user.updatedAt,
+    user.isActive ? 1 : 0,
+  )
+}
+
+async function ensureUserAccounts(db: SQLite.SQLiteDatabase) {
+  const users = await loadUsers(db)
+  if (users.length > 0) return users
+
+  const defaultUser = makeDefaultUser()
+  void insertUserAccount(db, defaultUser).catch((error) => {
+    console.log('Error creating default user', error)
+  })
+  return [defaultUser]
+}
+
+async function updateUserAccountInDb(db: SQLite.SQLiteDatabase, user: UserAccount) {
+  await db.runAsync('UPDATE users SET isActive = 0 WHERE id <> ?;', user.id)
+  await db.runAsync(
+    `INSERT INTO users
+      (id, fullName, email, career, createdAt, updatedAt, isActive)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+      ON CONFLICT(id) DO UPDATE SET
+        fullName = excluded.fullName,
+        email = excluded.email,
+        career = excluded.career,
+        updatedAt = excluded.updatedAt,
+        isActive = 1;`,
+    user.id,
+    user.fullName,
+    user.email,
+    user.career,
+    user.createdAt,
+    user.updatedAt,
+  )
+}
+
+async function loadProjects(db: SQLite.SQLiteDatabase, userId: string) {
+  return db.getAllAsync<ProjectRow>('SELECT * FROM projects WHERE userId = ? ORDER BY createdAt DESC;', userId)
 }
 
 async function insertProject(db: SQLite.SQLiteDatabase, project: Project) {
   await db.runAsync(
     `INSERT INTO projects
-      (id, title, course, due, description, progress, accent, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      (id, userId, title, course, due, description, progress, accent, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     project.id,
+    project.userId,
     project.title,
     project.course,
     project.due,
@@ -860,12 +1137,15 @@ export default function App() {
   const [reminderOffset, setReminderOffset] = useState<number>(60)
   const [tasks, setTasks] = useState<Task[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [users, setUsers] = useState<UserAccount[]>([])
+  const [currentUser, setCurrentUser] = useState<UserAccount>(() => makeDefaultUser())
   const [projects, setProjects] = useState<Project[]>([])
   const [projectSubtasks, setProjectSubtasks] = useState<ProjectSubtask[]>([])
   const [query, setQuery] = useState('')
   const [modalVisible, setModalVisible] = useState(false)
   const [assistantTaskDraft, setAssistantTaskDraft] = useState<TaskDraft | null>(null)
   const [subjectModalVisible, setSubjectModalVisible] = useState(false)
+  const [userModalVisible, setUserModalVisible] = useState(false)
   const [projectModalVisible, setProjectModalVisible] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null)
@@ -883,24 +1163,26 @@ export default function App() {
       const db = await SQLite.openDatabaseAsync(dbName)
       dbRef.current = db
       await setupDatabase(db)
+      const nextUsers = await ensureUserAccounts(db)
+      const nextCurrentUser = nextUsers.find((user) => user.isActive) ?? nextUsers[0] ?? makeDefaultUser()
 
       const count = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM tasks;')
       if ((count?.count ?? 0) === 0) {
-        for (const task of starterTasks()) {
+        for (const task of starterTasks(guestUserId)) {
           await insertTask(db, task)
         }
       }
 
       const subjectCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM subjects;')
       if ((subjectCount?.count ?? 0) === 0) {
-        for (const subject of starterSubjects()) {
+        for (const subject of starterSubjects(guestUserId)) {
           await insertSubject(db, subject)
         }
       }
 
       const projectCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM projects;')
       if ((projectCount?.count ?? 0) === 0) {
-        for (const project of starterProjects()) {
+        for (const project of starterProjects(guestUserId)) {
           await insertProject(db, project)
         }
       }
@@ -909,7 +1191,7 @@ export default function App() {
         'SELECT COUNT(*) as count FROM project_subtasks;',
       )
       if ((subtaskCount?.count ?? 0) === 0) {
-        for (const subtask of starterProjectSubtasks()) {
+        for (const subtask of starterProjectSubtasks(guestUserId)) {
           await insertProjectSubtask(db, subtask)
         }
       }
@@ -930,17 +1212,19 @@ export default function App() {
         'SELECT value FROM settings WHERE key = ?;',
         'reminderOffset',
       )
-      const nextTasks = await loadTasks(db)
-      const nextSubjects = await loadSubjects(db)
-      const nextProjects = await loadProjects(db)
+      const nextTasks = await loadTasks(db, nextCurrentUser.id)
+      const nextSubjects = await loadSubjects(db, nextCurrentUser.id)
+      const nextProjects = await loadProjects(db, nextCurrentUser.id)
       const nextProjectSubtasks = await loadProjectSubtasks(db)
 
       if (!mounted) return
       setTasks(nextTasks)
       setSubjects(nextSubjects)
+      setUsers(nextUsers)
+      setCurrentUser(nextCurrentUser)
       setProjects(nextProjects)
       setProjectSubtasks(nextProjectSubtasks)
-      if (savedTheme?.value === 'dark' || savedTheme?.value === 'light') {
+      if (savedTheme?.value && Object.prototype.hasOwnProperty.call(themes, savedTheme.value)) {
         setThemeName(savedTheme.value)
       }
       const parsedScale = Number(savedFontScale?.value)
@@ -1011,19 +1295,41 @@ export default function App() {
   const refreshTasks = async () => {
     const db = dbRef.current
     if (!db) return
-    setTasks(await loadTasks(db))
+    setTasks(await loadTasks(db, currentUser.id))
   }
 
   const refreshSubjects = async () => {
     const db = dbRef.current
     if (!db) return
-    setSubjects(await loadSubjects(db))
+    setSubjects(await loadSubjects(db, currentUser.id))
+  }
+
+  const refreshUsers = async () => {
+    const db = dbRef.current
+    if (!db) return
+    const nextUsers = await loadUsers(db)
+    setUsers(nextUsers)
+    setCurrentUser(nextUsers.find((user) => user.isActive) ?? nextUsers[0] ?? makeDefaultUser())
   }
 
   const refreshProjects = async () => {
     const db = dbRef.current
     if (!db) return
-    setProjects(await loadProjects(db))
+    setProjects(await loadProjects(db, currentUser.id))
+    setProjectSubtasks(await loadProjectSubtasks(db))
+  }
+
+  const loadWorkspaceForUser = async (user: UserAccount) => {
+    const db = dbRef.current
+    if (!db) return
+    setCurrentUser(user)
+    setSelectedTaskId(null)
+    setSelectedCourse(null)
+    setSelectedProjectId(null)
+    setQuery('')
+    setTasks(await loadTasks(db, user.id))
+    setSubjects(await loadSubjects(db, user.id))
+    setProjects(await loadProjects(db, user.id))
     setProjectSubtasks(await loadProjectSubtasks(db))
   }
 
@@ -1071,11 +1377,60 @@ export default function App() {
   const [editingSubjectName, setEditingSubjectName] = useState<string | null>(null)
   const [isEditingSubjectsApp, setIsEditingSubjectsApp] = useState(false)
 
+  const switchUser = async (userId: string) => {
+    const db = dbRef.current
+    const nextUser = users.find((user) => user.id === userId)
+    if (!db || !nextUser || nextUser.id === currentUser.id) return
+
+    const updatedUsers = users.map((user) => ({ ...user, isActive: user.id === userId }))
+    setUsers(updatedUsers)
+
+    try {
+      await db.runAsync('UPDATE users SET isActive = CASE WHEN id = ? THEN 1 ELSE 0 END;', userId)
+      await loadWorkspaceForUser({ ...nextUser, isActive: true })
+    } catch (error) {
+      Alert.alert('No se pudo cambiar de cuenta', String(error))
+      await refreshUsers()
+    }
+  }
+
+  const createUserAccount = async (input: UserAccountDraft) => {
+    const cleanName = input.fullName.trim()
+    const cleanEmail = input.email.trim()
+    const cleanCareer = input.career.trim()
+    const db = dbRef.current
+
+    if (!db || !cleanName) return
+
+    const now = new Date().toISOString()
+    const newUser: UserAccount = {
+      id: makeId(),
+      fullName: cleanName,
+      email: cleanEmail,
+      career: cleanCareer,
+      createdAt: now,
+      updatedAt: now,
+      isActive: true,
+    }
+
+    const nextUsers = [newUser, ...users.map((user) => ({ ...user, isActive: false }))]
+    setUsers(nextUsers)
+
+    try {
+      await updateUserAccountInDb(db, newUser)
+      await refreshUsers()
+      await loadWorkspaceForUser(newUser)
+    } catch (error) {
+      Alert.alert('No se pudo crear la cuenta', String(error))
+      await refreshUsers()
+    }
+  }
+
   const addSubject = async (name: string) => {
     const cleanName = name.trim()
     const db = dbRef.current
     if (!db || !cleanName) return
-    await insertSubject(db, { id: makeId(), name: cleanName, createdAt: new Date().toISOString() })
+    await insertSubject(db, { id: makeId(), userId: currentUser.id, name: cleanName, createdAt: new Date().toISOString() })
     await refreshSubjects()
   }
 
@@ -1083,9 +1438,9 @@ export default function App() {
     const cleanName = newName.trim()
     const db = dbRef.current
     if (!db || !cleanName || oldName === cleanName) return
-    await db.runAsync('UPDATE subjects SET name = ? WHERE name = ?;', cleanName, oldName)
-    await db.runAsync('UPDATE tasks SET course = ? WHERE course = ?;', cleanName, oldName)
-    await db.runAsync('UPDATE projects SET course = ? WHERE course = ?;', cleanName, oldName)
+    await db.runAsync('UPDATE subjects SET name = ? WHERE name = ? AND userId = ?;', cleanName, oldName, currentUser.id)
+    await db.runAsync('UPDATE tasks SET course = ? WHERE course = ? AND userId = ?;', cleanName, oldName, currentUser.id)
+    await db.runAsync('UPDATE projects SET course = ? WHERE course = ? AND userId = ?;', cleanName, oldName, currentUser.id)
     await refreshSubjects()
     await refreshTasks()
     await refreshProjects()
@@ -1113,9 +1468,9 @@ export default function App() {
             for (const p of projectsToDelete) {
               await db.runAsync('DELETE FROM project_subtasks WHERE projectId = ?;', p.id)
             }
-            await db.runAsync('DELETE FROM tasks WHERE course = ?;', subjectName)
-            await db.runAsync('DELETE FROM projects WHERE course = ?;', subjectName)
-            await db.runAsync('DELETE FROM subjects WHERE name = ?;', subjectName)
+            await db.runAsync('DELETE FROM tasks WHERE course = ? AND userId = ?;', subjectName, currentUser.id)
+            await db.runAsync('DELETE FROM projects WHERE course = ? AND userId = ?;', subjectName, currentUser.id)
+            await db.runAsync('DELETE FROM subjects WHERE name = ? AND userId = ?;', subjectName, currentUser.id)
             await refreshSubjects()
             await refreshTasks()
             await refreshProjects()
@@ -1128,7 +1483,7 @@ export default function App() {
   const addProject = async (input: ProjectDraft) => {
     const db = dbRef.current
     if (!db) return
-    await insertProject(db, { ...input, id: makeId(), createdAt: new Date().toISOString() })
+    await insertProject(db, { ...input, id: makeId(), userId: currentUser.id, createdAt: new Date().toISOString() })
     await refreshProjects()
     setProjectModalVisible(false)
     setActiveTab('projects')
@@ -1185,6 +1540,7 @@ export default function App() {
     const task: Task = {
       ...input,
       id: makeId(),
+      userId: currentUser.id,
       done: false,
       createdAt: new Date().toISOString(),
     }
@@ -1301,20 +1657,23 @@ export default function App() {
               console.log('Error deleting media folder', e)
             }
           }
-          await db.runAsync('DELETE FROM tasks;')
-          await db.runAsync('DELETE FROM subjects;')
-          await db.runAsync('DELETE FROM project_subtasks;')
-          await db.runAsync('DELETE FROM projects;')
-          for (const task of starterTasks()) {
+          const projectsToReset = projects.map((project) => project.id)
+          for (const projectId of projectsToReset) {
+            await db.runAsync('DELETE FROM project_subtasks WHERE projectId = ?;', projectId)
+          }
+          await db.runAsync('DELETE FROM tasks WHERE userId = ?;', currentUser.id)
+          await db.runAsync('DELETE FROM subjects WHERE userId = ?;', currentUser.id)
+          await db.runAsync('DELETE FROM projects WHERE userId = ?;', currentUser.id)
+          for (const task of starterTasks(currentUser.id)) {
             await insertTask(db, task)
           }
-          for (const subject of starterSubjects()) {
+          for (const subject of starterSubjects(currentUser.id)) {
             await insertSubject(db, subject)
           }
-          for (const project of starterProjects()) {
+          for (const project of starterProjects(currentUser.id)) {
             await insertProject(db, project)
           }
-          for (const subtask of starterProjectSubtasks()) {
+          for (const subtask of starterProjectSubtasks(currentUser.id)) {
             await insertProjectSubtask(db, subtask)
           }
           await refreshTasks()
@@ -1336,10 +1695,10 @@ export default function App() {
 
   return (
     <View style={styles.app}>
-      <SystemBars style={themeName === 'dark' ? 'light' : 'dark'} />
+      <SystemBars style={themeName.startsWith('dark') ? 'light' : 'dark'} />
     <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ flex: 1, backgroundColor: theme.bg }}>
       <LinearGradient
-        colors={themeName === 'dark' ? ['#08353b', theme.bg] : ['#d8f1f5', theme.bg]}
+        colors={[gradientStarts[themeName], theme.bg]}
         style={styles.gradient}
       >
         <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
@@ -1349,7 +1708,7 @@ export default function App() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <Header pendingCount={pendingCount} styles={styles} theme={theme} />
+            <Header pendingCount={pendingCount} styles={styles} theme={theme} user={currentUser} />
             <SearchBar
               query={query}
               setQuery={setQuery}
@@ -1448,6 +1807,9 @@ export default function App() {
                 resetData={resetData}
                 imageCount={imageCount}
                 audioCount={audioCount}
+                user={currentUser}
+                userCount={users.length}
+                onManageUsers={() => setUserModalVisible(true)}
               />
             )}
             <ScrollSpacer />
@@ -1500,6 +1862,16 @@ export default function App() {
         theme={theme}
         visible={subjectModalVisible}
       />
+      <UserAccountsModal
+        onClose={() => setUserModalVisible(false)}
+        onCreateUser={createUserAccount}
+        onSwitchUser={switchUser}
+        styles={styles}
+        theme={theme}
+        currentUser={currentUser}
+        users={users}
+        visible={userModalVisible}
+      />
       <ProjectModal
         courses={subjectNames}
         onClose={() => setProjectModalVisible(false)}
@@ -1551,12 +1923,17 @@ function Header({
   pendingCount,
   styles,
   theme,
+  user,
 }: {
   pendingCount: number
   styles: ReturnType<typeof createStyles>
   theme: Theme
+  user: UserAccount
 }) {
   const [greeting, setGreeting] = useState(() => getGreeting())
+  const displayName = user.fullName.trim() || 'Estudiante'
+  const displayInitials = getInitials(displayName)
+  const studentContext = user.career.trim() ? `${user.career} · ` : ''
 
   useEffect(() => {
     const interval = setInterval(() => setGreeting(getGreeting()), 60_000)
@@ -1567,11 +1944,13 @@ function Header({
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         <Text style={styles.eyebrow}>{greeting}</Text>
-        <Text style={styles.heroTitle}>Estudiante</Text>
-        <Text style={styles.subcopy}>{pendingCount} pendientes por organizar hoy</Text>
+        <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.62}>
+          {displayName}
+        </Text>
+        <Text style={styles.subcopy}>{studentContext}{pendingCount} pendientes por organizar hoy</Text>
       </View>
       <View style={styles.avatar}>
-        <Text style={[styles.avatarText, { color: theme.accent }]}>E</Text>
+        <Text style={[styles.avatarText, { color: theme.accent }]}>{displayInitials}</Text>
       </View>
     </View>
   )
@@ -1900,6 +2279,9 @@ export function SettingsView({
   resetData,
   imageCount,
   audioCount,
+  user,
+  userCount,
+  onManageUsers,
 }: {
   styles: ReturnType<typeof createStyles>
   taskCount: number
@@ -1915,12 +2297,39 @@ export function SettingsView({
   resetData: () => void
   imageCount: number
   audioCount: number
+  user: UserAccount
+  userCount: number
+  onManageUsers: () => void
 }) {
   const isDark = themeName.startsWith('dark')
-  const isColorblind = themeName.endsWith('colorblind')
+  const isColorblind = isColorblindThemeName(themeName)
+  const colorblindPalette = getColorblindPalette(themeName)
+  const accountDetail = [user.email, user.career].filter(Boolean).join(' · ') || 'Perfil local del estudiante'
 
   return (
     <View style={styles.stack}>
+      <View>
+        <SectionTitle
+          action="Gestionar"
+          onAction={onManageUsers}
+          styles={styles}
+          theme={theme}
+          title="Cuenta"
+        />
+        <Pressable style={styles.settingsCard} onPress={onManageUsers}>
+          <View style={styles.courseIcon}>
+            <User color={theme.accent} size={24} />
+          </View>
+          <View style={styles.settingsCopy}>
+            <Text style={styles.courseTitle}>Cuenta activa: {user.fullName}</Text>
+            <Text style={styles.cardMuted}>{accountDetail} · {userCount} cuentas locales</Text>
+          </View>
+          <View style={styles.accountInitials}>
+            <Text style={styles.accountInitialsText}>{getInitials(user.fullName)}</Text>
+          </View>
+        </Pressable>
+      </View>
+
       <View>
         <SectionTitle styles={styles} theme={theme} title="Ajustes" />
         <View style={styles.settingsCard}>
@@ -1935,7 +2344,7 @@ export function SettingsView({
           </View>
           <Switch
             value={isDark}
-            onValueChange={(enabled) => setThemeName(`${enabled ? 'dark' : 'light'}${isColorblind ? '_colorblind' : ''}` as ThemeName)}
+            onValueChange={(enabled) => setThemeName(buildThemeName(enabled, isColorblind ? colorblindPalette : undefined))}
             thumbColor={isDark ? theme.accent : '#ffffff'}
             trackColor={{ false: theme.border, true: theme.accentSoft }}
           />
@@ -1947,15 +2356,33 @@ export function SettingsView({
           </View>
           <View style={styles.settingsCopy}>
             <Text style={styles.courseTitle}>Modo para daltónicos</Text>
-            <Text style={styles.cardMuted}>Paleta segura (protanopía / deuteranopía)</Text>
+            <Text style={styles.cardMuted}>Paletas seguras con alternativas para estado y progreso.</Text>
           </View>
           <Switch
             value={isColorblind}
-            onValueChange={(enabled) => setThemeName(`${isDark ? 'dark' : 'light'}${enabled ? '_colorblind' : ''}` as ThemeName)}
+            onValueChange={(enabled) => setThemeName(buildThemeName(isDark, enabled ? colorblindPalette : undefined))}
             thumbColor={isColorblind ? theme.accent : '#ffffff'}
             trackColor={{ false: theme.border, true: theme.accentSoft }}
           />
         </View>
+        {isColorblind && (
+          <View style={styles.segmentRow}>
+            {([
+              ['blue', 'Azul/naranja'],
+              ['amber', 'Ámbar/violeta'],
+            ] as const).map(([palette, label]) => (
+              <Pressable
+                key={palette}
+                style={[styles.segmentButton, colorblindPalette === palette && styles.segmentButtonActive]}
+                onPress={() => setThemeName(buildThemeName(isDark, palette))}
+              >
+                <Text style={[styles.segmentText, colorblindPalette === palette && { color: theme.accent }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
 
       <View>
@@ -2027,6 +2454,7 @@ export function SettingsView({
 
       <View style={styles.metricsGrid}>
         <MetricCard label="Tareas SQLite" value={taskCount} styles={styles} />
+        <MetricCard label="Cuentas" value={userCount} styles={styles} />
         <MetricCard label="Multimedia" value={imageCount + audioCount} styles={styles} />
       </View>
 
@@ -2225,6 +2653,143 @@ function SubjectModal({
   )
 }
 
+function UserAccountsModal({
+  currentUser,
+  onClose,
+  onCreateUser,
+  onSwitchUser,
+  styles,
+  theme,
+  users,
+  visible,
+}: {
+  currentUser: UserAccount
+  onClose: () => void
+  onCreateUser: (user: UserAccountDraft) => Promise<void>
+  onSwitchUser: (userId: string) => Promise<void>
+  styles: ReturnType<typeof createStyles>
+  theme: Theme
+  users: UserAccount[]
+  visible: boolean
+}) {
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [career, setCareer] = useState('')
+
+  useEffect(() => {
+    if (visible) {
+      setFullName('')
+      setEmail('')
+      setCareer('')
+    }
+  }, [visible])
+
+  const submit = async () => {
+    const cleanName = fullName.trim()
+    const cleanEmail = email.trim()
+
+    if (!cleanName) {
+      Alert.alert('Falta el nombre', 'Escribe el nombre del estudiante.')
+      return
+    }
+
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      Alert.alert('Correo inválido', 'Escribe un correo válido o deja el campo vacío.')
+      return
+    }
+
+    await onCreateUser({
+      fullName: cleanName,
+      email: cleanEmail,
+      career: career.trim(),
+    })
+    setFullName('')
+    setEmail('')
+    setCareer('')
+    onClose()
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={styles.eyebrow}>Cuentas locales</Text>
+                <Text style={styles.modalTitle}>Cambiar usuario</Text>
+              </View>
+              <Pressable onPress={onClose} hitSlop={15} style={{ padding: 4 }}>
+                <X color={theme.muted} size={24} />
+              </Pressable>
+            </View>
+            <View style={styles.accountList}>
+              {users.map((item) => {
+                const isActive = item.id === currentUser.id
+                const detail = item.id === guestUserId
+                  ? 'Invitado por defecto'
+                  : [item.email, item.career].filter(Boolean).join(' · ') || 'Cuenta local'
+
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={[styles.accountRow, isActive && styles.accountRowActive]}
+                    onPress={async () => {
+                      await onSwitchUser(item.id)
+                      onClose()
+                    }}
+                  >
+                    <View style={styles.accountInitials}>
+                      <Text style={styles.accountInitialsText}>{getInitials(item.fullName)}</Text>
+                    </View>
+                    <View style={styles.settingsCopy}>
+                      <Text style={styles.courseTitle}>{item.fullName}</Text>
+                      <Text style={styles.cardMuted}>{detail}</Text>
+                    </View>
+                    {isActive && <Check color={theme.accent} size={20} />}
+                  </Pressable>
+                )
+              })}
+            </View>
+            <View style={styles.modalDivider} />
+            <Text style={styles.modalSubtitle}>Crear nueva cuenta</Text>
+            <Text style={styles.formLabel}>Nombre completo</Text>
+            <TextInput
+              placeholder="Ej. Ana López"
+              placeholderTextColor={theme.muted}
+              style={styles.field}
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <Text style={styles.formLabel}>Correo</Text>
+            <TextInput
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="ana@universidad.edu"
+              placeholderTextColor={theme.muted}
+              style={styles.field}
+              value={email}
+              onChangeText={setEmail}
+            />
+            <Text style={styles.formLabel}>Carrera o programa</Text>
+            <TextInput
+              placeholder="Ej. Ingeniería de Software"
+              placeholderTextColor={theme.muted}
+              style={styles.field}
+              value={career}
+              onChangeText={setCareer}
+            />
+            <Pressable style={styles.primaryAction} onPress={submit}>
+              <Save color="#041113" size={18} />
+              <Text style={styles.primaryActionText}>Guardar cuenta</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  )
+}
+
 function ProjectModal({
   courses,
   onClose,
@@ -2331,7 +2896,11 @@ function ProjectModal({
                 <Pressable
                   key={item}
                   onPress={() => setAccent(item)}
-                  style={[styles.swatch, { backgroundColor: item }, accent === item && styles.swatchActive]}
+                  style={[
+                    styles.swatch,
+                    { backgroundColor: getProjectAccentForTheme(item, theme) },
+                    accent === item && styles.swatchActive,
+                  ]}
                 />
               ))}
             </View>
@@ -3280,6 +3849,7 @@ function ProjectCard({
 }) {
   const done = subtasks.filter((subtask) => subtask.done).length
   const progress = subtasks.length ? Math.round((done / subtasks.length) * 100) : project.progress
+  const projectAccent = getProjectAccentForTheme(project.accent, theme)
 
   return (
     <Pressable 
@@ -3288,11 +3858,11 @@ function ProjectCard({
       accessibilityLabel={`Proyecto ${project.title}, ${progress}% completado`}
     >
       <LinearGradient
-        colors={theme.name === 'dark' ? ['rgba(255,255,255,0.16)', theme.card] : ['#ffffff', theme.card]}
+        colors={theme.name.startsWith('dark') ? ['rgba(255,255,255,0.16)', theme.card] : ['#ffffff', theme.card]}
         style={[styles.projectCard, large && styles.projectCardLarge]}
       >
         <View style={styles.projectTopline}>
-          <View style={[styles.projectMark, { backgroundColor: project.accent }]} />
+          <View style={[styles.projectMark, { backgroundColor: projectAccent }]} />
           <ChevronRight color={theme.muted} size={20} />
         </View>
         <Text style={styles.projectTitle}>{project.title}</Text>
@@ -3300,7 +3870,7 @@ function ProjectCard({
         {!!project.description && large && <Text style={styles.taskDescription}>{project.description}</Text>}
         <View style={styles.progressRow}>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: project.accent }]} />
+            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: projectAccent }]} />
           </View>
           <Text style={styles.progressText}>{progress}%</Text>
         </View>
@@ -3570,6 +4140,38 @@ function createStyles(theme: Theme, fontScale: FontScale) {
   })
   const fs = (value: number) => Math.round(value * fontScale)
   const lh = (value: number) => Math.round(value * fontScale)
+  const isDarkTheme = theme.name.startsWith('dark')
+  const isColorblindTheme = theme.name.includes('colorblind')
+  const priorityHighBg = isColorblindTheme
+    ? isDarkTheme
+      ? 'rgba(240,162,2,0.14)'
+      : 'rgba(182,83,0,0.12)'
+    : isDarkTheme
+      ? 'rgba(255,122,138,0.14)'
+      : 'rgba(201,42,42,0.10)'
+  const priorityMidColor = isDarkTheme ? '#f2bf65' : '#8a5a00'
+  const priorityMidBg = isDarkTheme ? 'rgba(242,191,101,0.14)' : 'rgba(138,90,0,0.12)'
+  const priorityLowBg = isColorblindTheme
+    ? isDarkTheme
+      ? 'rgba(204,121,167,0.16)'
+      : 'rgba(111,78,155,0.12)'
+    : isDarkTheme
+      ? 'rgba(99,216,173,0.14)'
+      : 'rgba(8,127,111,0.12)'
+  const dangerActionBg = isColorblindTheme
+    ? isDarkTheme
+      ? 'rgba(240,162,2,0.14)'
+      : 'rgba(182,83,0,0.12)'
+    : isDarkTheme
+      ? 'rgba(255,122,138,0.12)'
+      : 'rgba(201,42,42,0.10)'
+  const dangerActionBorder = isColorblindTheme
+    ? isDarkTheme
+      ? 'rgba(240,162,2,0.28)'
+      : 'rgba(182,83,0,0.24)'
+    : isDarkTheme
+      ? 'rgba(255,122,138,0.25)'
+      : 'rgba(201,42,42,0.22)'
 
   return StyleSheet.create({
     app: {
@@ -3671,6 +4273,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
     },
     metricsGrid: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 14,
     },
     metricCard: {
@@ -3679,6 +4282,7 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       borderRadius: 26,
       borderWidth: 1,
       flex: 1,
+      minWidth: 120,
       padding: 18,
     },
     metricValue: {
@@ -3898,19 +4502,19 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       fontWeight: '800',
     },
     priorityHigh: {
-      backgroundColor: 'rgba(255,122,138,0.14)',
+      backgroundColor: priorityHighBg,
     },
     priorityHighText: {
       color: theme.danger,
     },
     priorityMid: {
-      backgroundColor: 'rgba(242,191,101,0.14)',
+      backgroundColor: priorityMidBg,
     },
     priorityMidText: {
-      color: '#f2bf65',
+      color: priorityMidColor,
     },
     priorityLow: {
-      backgroundColor: 'rgba(99,216,173,0.14)',
+      backgroundColor: priorityLowBg,
     },
     priorityLowText: {
       color: theme.success,
@@ -4009,6 +4613,41 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       fontFamily,
       fontSize: fs(17),
       fontWeight: '800',
+    },
+    accountInitials: {
+      alignItems: 'center',
+      backgroundColor: theme.accentSoft,
+      borderColor: theme.accent,
+      borderRadius: 16,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 42,
+      minWidth: 42,
+      paddingHorizontal: 8,
+    },
+    accountInitialsText: {
+      color: theme.accent,
+      fontFamily,
+      fontSize: fs(14),
+      fontWeight: '900',
+    },
+    accountList: {
+      gap: 10,
+    },
+    accountRow: {
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
+      borderRadius: 20,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 12,
+      minHeight: 72,
+      padding: 13,
+    },
+    accountRowActive: {
+      backgroundColor: theme.accentSoft,
+      borderColor: theme.accent,
     },
     settingsCard: {
       alignItems: 'center',
@@ -4158,8 +4797,8 @@ function createStyles(theme: Theme, fontScale: FontScale) {
     },
     dangerAction: {
       alignItems: 'center',
-      backgroundColor: 'rgba(255,122,138,0.12)',
-      borderColor: 'rgba(255,122,138,0.25)',
+      backgroundColor: dangerActionBg,
+      borderColor: dangerActionBorder,
       borderRadius: 20,
       borderWidth: 1,
       flexDirection: 'row',
@@ -4247,6 +4886,18 @@ function createStyles(theme: Theme, fontScale: FontScale) {
       fontFamily,
       fontSize: fs(24),
       fontWeight: '800',
+    },
+    modalSubtitle: {
+      color: theme.text,
+      fontFamily,
+      fontSize: fs(16),
+      fontWeight: '800',
+    },
+    modalDivider: {
+      backgroundColor: theme.border,
+      height: 1,
+      marginVertical: 2,
+      width: '100%',
     },
     field: {
       backgroundColor: theme.surfaceStrong,
